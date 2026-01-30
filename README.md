@@ -295,3 +295,4 @@ For questions or support, contact the development team.
 ---
 
 **Built with ❤️ using FastAPI, LangGraph, and Google Gemini API**
+# JuristwayAI_backend_New
