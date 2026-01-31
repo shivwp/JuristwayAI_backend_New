@@ -1,12 +1,11 @@
 import os
 import re
 import logging
-from pymongo import MongoClient
 from redis import Redis
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
-from langgraph.checkpoint.mongodb import MongoDBSaver
+from langgraph.checkpoint.memory import MemorySaver
 
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_core.messages import HumanMessage
@@ -20,9 +19,8 @@ from dotenv import load_dotenv
 load_dotenv()
 # --- 1. INFRASTRUCTURE SETUP ---
 
-# MongoDB Checkpointer (Synchronous for Compatibility)
-client = MongoClient(settings.DB_URL)
-memory = MongoDBSaver(client, db_name=settings.DB_NAME, collection_name="checkpoints")
+# Memory Checkpointer (In-memory for development)
+memory = MemorySaver()
 
 # Redis Client
 redis_client = Redis(

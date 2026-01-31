@@ -20,3 +20,4 @@ hms/  # (If 'hms' is your virtual environment folder)
 pi.py 
 test_search.py
 test.py 
+SETUP_GUIDE.md
