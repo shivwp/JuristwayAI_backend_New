@@ -4,7 +4,7 @@
 # Python internals
 __pycache__/
 *.py[cod]
-
+venv
 # IDE settings
 .vscode/
 
