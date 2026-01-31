@@ -14,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Setup SSH key
+      # 2. Setup SSH for VPS
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -28,12 +28,13 @@ jobs:
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} << 'EOF'
             set -e
 
-            echo "🚀 Starting backend deployment..."
+            echo "🚀 Starting Juristway backend deployment..."
 
             cd /var/www/juristway/backend
 
-            echo "📥 Pulling latest code"
-            git pull origin main
+            echo "📥 Force syncing code from GitHub"
+            git fetch origin
+            git reset --hard origin/main
 
             echo "🐍 Activating virtual environment"
             if [ ! -d "venv" ]; then
@@ -41,18 +42,18 @@ jobs:
             fi
             source venv/bin/activate
 
-            echo "📦 Installing dependencies"
+            echo "📦 Installing Python dependencies"
             pip install --upgrade pip
-            if [ -f requirements.txt ]; then
-              pip install -r requirements.txt
-            fi
+            pip install -r requirements.txt
 
-            echo "♻️ Restarting backend with PM2"
-            pm2 describe juristway-backend > /dev/null 2>&1 || \
-              pm2 start main.py --name juristway-backend --interpreter venv/bin/python
+            echo "♻️ Restarting FastAPI using PM2 + Uvicorn"
 
-            pm2 restart juristway-backend
+            pm2 delete juristway-backend || true
+
+            pm2 start "venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000" \
+              --name juristway-backend
+
             pm2 save
 
-            echo "✅ Backend deployment completed"
+            echo "✅ Juristway backend deployed successfully!"
           EOF
