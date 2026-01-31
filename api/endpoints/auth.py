@@ -25,7 +25,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     # Add a max_time_ms to force a timeout if the DB is unreachable
     user = await users_collection.find_one(
             {"email": form_data.username}
-            
+
         )
     
     print(f"DEBUG: Attempting login for: '{form_data.username}'")
@@ -39,7 +39,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         )
 
     access_token = create_access_token(data={"sub": user["email"]})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "is_admin": user.get("is_admin", False)}
 
 
 @router.delete("/account")
