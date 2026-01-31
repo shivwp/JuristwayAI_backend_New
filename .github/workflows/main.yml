@@ -10,11 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Setup SSH to VPS
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -22,11 +20,10 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.VPS_IP }} >> ~/.ssh/known_hosts
 
-      # 3. Deploy backend to VPS
       - name: Deploy backend to VPS
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} << 'EOF'
-            set -e
+            set -euxo pipefail
 
             echo "🚀 Starting Juristway backend deployment..."
 
@@ -36,17 +33,23 @@ jobs:
             git fetch origin
             git reset --hard origin/main
 
-            echo "🐍 Ensuring python venv support"
+            echo "🐍 Checking python installation"
+            which python3 || true
+            python3 --version || true
+
+            echo "🐍 Installing venv support"
             sudo apt-get update -y
             sudo apt-get install -y python3-venv
 
-            echo "🐍 Creating / activating virtual environment"
-            if [ ! -d "venv" ]; then
-              python3 -m venv venv
-            fi
+            echo "🐍 Recreating virtual environment"
+            rm -rf venv
+
+            python3 -m venv venv
+
+            ls -la venv/bin
 
             if [ ! -f "venv/bin/activate" ]; then
-              echo "❌ venv creation failed"
+              echo "❌ venv creation FAILED — aborting"
               exit 1
             fi
 
@@ -56,7 +59,7 @@ jobs:
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo "♻️ Restarting FastAPI using PM2 + Uvicorn"
+            echo "♻️ Restarting FastAPI with PM2"
 
             pm2 delete juristway-backend || true
 
