@@ -1,0 +1,58 @@
+name: Juristway Backend CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup SSH key
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.VPS_IP }} >> ~/.ssh/known_hosts
+
+      # 3. Deploy to VPS
+      - name: Deploy backend to VPS
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} << 'EOF'
+            set -e
+
+            echo "🚀 Starting backend deployment..."
+
+            cd /var/www/juristway/backend
+
+            echo "📥 Pulling latest code"
+            git pull origin main
+
+            echo "🐍 Activating virtual environment"
+            if [ ! -d "venv" ]; then
+              python3 -m venv venv
+            fi
+            source venv/bin/activate
+
+            echo "📦 Installing dependencies"
+            pip install --upgrade pip
+            if [ -f requirements.txt ]; then
+              pip install -r requirements.txt
+            fi
+
+            echo "♻️ Restarting backend with PM2"
+            pm2 describe juristway-backend > /dev/null 2>&1 || \
+              pm2 start main.py --name juristway-backend --interpreter venv/bin/python
+
+            pm2 restart juristway-backend
+            pm2 save
+
+            echo "✅ Backend deployment completed"
+          EOF
