@@ -25,6 +25,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     # Add a max_time_ms to force a timeout if the DB is unreachable
     user = await users_collection.find_one(
             {"email": form_data.username}
+            
         )
     
     print(f"DEBUG: Attempting login for: '{form_data.username}'")
