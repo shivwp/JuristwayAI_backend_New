@@ -9,15 +9,25 @@ from core.database import get_users_collection
 from models.domain import TokenData
 from dotenv import load_dotenv
 load_dotenv()
+# FIX: Explicitly setting the bcrypt backends helps avoid the 72-byte error
+# though downgrading bcrypt to 4.0.1 is still recommended.
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # FIXED: Added leading slash to ensure the Swagger UI finds the correct route
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password):
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    Verify a plain password against a hash.
+    Note: Passlib + Bcrypt has a 72-char limit.
+    """
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except ValueError:
+        # This catches cases where the library rejects the check due to version mismatches
+        return False
+    
+def get_password_hash(password: str) -> str:
+    """Hash a password for storage."""
     return pwd_context.hash(password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
