@@ -21,7 +21,7 @@ logging.basicConfig(
         logging.FileHandler("juristway_app.log") # Save logs locally for backup
     ]
 )
-logger = logging.getLogger("juristway_main")
+logger = logging.getLogger("juristway")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -75,7 +75,7 @@ app.include_router(management.router, prefix="/api", tags=["Admin Management"])
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://api.juristway.com"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
