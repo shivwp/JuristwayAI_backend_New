@@ -10,11 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout code
+      # 1. Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Setup SSH for VPS
+      # 2. Setup SSH to VPS
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -22,7 +22,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.VPS_IP }} >> ~/.ssh/known_hosts
 
-      # 3. Deploy to VPS
+      # 3. Deploy backend to VPS
       - name: Deploy backend to VPS
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} << 'EOF'
@@ -32,14 +32,24 @@ jobs:
 
             cd /var/www/juristway/backend
 
-            echo "📥 Force syncing code from GitHub"
+            echo "📥 Force syncing code"
             git fetch origin
             git reset --hard origin/main
 
-            echo "🐍 Activating virtual environment"
+            echo "🐍 Ensuring python venv support"
+            sudo apt-get update -y
+            sudo apt-get install -y python3-venv
+
+            echo "🐍 Creating / activating virtual environment"
             if [ ! -d "venv" ]; then
               python3 -m venv venv
             fi
+
+            if [ ! -f "venv/bin/activate" ]; then
+              echo "❌ venv creation failed"
+              exit 1
+            fi
+
             source venv/bin/activate
 
             echo "📦 Installing Python dependencies"
