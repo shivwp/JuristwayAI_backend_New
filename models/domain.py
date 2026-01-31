@@ -3,6 +3,7 @@ from typing import Optional, Annotated, List, Dict, Any
 from datetime import datetime, timezone
 from enum import Enum
 from dotenv import load_dotenv
+from sympy import Union
 load_dotenv()
 # Custom Type for MongoDB ObjectIDs
 PyObjectId = Annotated[str, BeforeValidator(str)]
@@ -12,7 +13,7 @@ class ChatRequest(BaseModel):
     chat_id: Optional[str] = None   # Optional chat/thread ID
 
 class ChatResponse(BaseModel):
-    message: str
+    message: str | list[Any]
     chat_id: str
     timestamp: datetime
 

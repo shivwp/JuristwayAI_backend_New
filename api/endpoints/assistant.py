@@ -73,8 +73,15 @@ async def send_message(
         }
     )
 
+    raw_answer = ai_data.get("answer", "")
+    if isinstance(raw_answer, list) and len(raw_answer) > 0:
+        # Get the text from the first block
+        final_message = raw_answer[0].get("text", "I'm sorry, I couldn't process that.")
+    else:
+        final_message = str(raw_answer)
+
     return ChatResponse(
-        message=display_content,
+        message=final_message,
         chat_id=session_id,
         timestamp=datetime.now(timezone.utc)
     )
