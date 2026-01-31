@@ -10,19 +10,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2) Setup SSH to VPS
       - name: Setup SSH
         run: |
+          set -eux
+
           mkdir -p ~/.ssh
+
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.VPS_IP }} >> ~/.ssh/known_hosts
 
+          echo "Scanning VPS host key..."
+          ssh-keyscan -H "${{ secrets.VPS_IP }}" >> ~/.ssh/known_hosts
+
+      # 3) Deploy backend to VPS
       - name: Deploy backend to VPS
         run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 \
+            -o StrictHostKeyChecking=yes \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} << 'EOF'
+
             set -euxo pipefail
 
             echo "🚀 Starting Juristway backend deployment..."
@@ -34,7 +45,7 @@ jobs:
             git reset --hard origin/main
             git clean -fd
 
-            echo "🐍 Using existing virtual environment: hms"
+            echo "🐍 Activating existing virtual environment (hms)"
 
             if [ ! -f "hms/bin/activate" ]; then
               echo "❌ hms virtualenv not found!"
@@ -47,7 +58,7 @@ jobs:
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo "♻️ Restarting FastAPI using PM2 + Uvicorn"
+            echo "♻️ Restarting FastAPI via PM2 + Uvicorn"
 
             pm2 delete juristway-backend || true
 
