@@ -10,19 +10,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2) Setup SSH
       - name: Setup SSH
         run: |
+          set -eux
+
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.VPS_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${{ secrets.VPS_IP }}" >> ~/.ssh/known_hosts
 
+      # 3) Deploy backend to VPS
       - name: Deploy backend to VPS
         run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} << 'EOF'
+
             set -euxo pipefail
 
             echo "🚀 Starting Juristway backend deployment..."
@@ -32,38 +39,28 @@ jobs:
             echo "📥 Force syncing code"
             git fetch origin
             git reset --hard origin/main
+            git clean -fd
 
-            echo "🐍 Checking python installation"
-            which python3 || true
-            python3 --version || true
+            echo "🐍 Recreating virtual environment (hms)"
+            rm -rf hms
+            python3 -m venv hms
 
-            echo "🐍 Installing venv support"
-            sudo apt-get update -y
-            sudo apt-get install -y python3-venv
-
-            echo "🐍 Recreating virtual environment"
-            rm -rf venv
-
-            python3 -m venv venv
-
-            ls -la venv/bin
-
-            if [ ! -f "venv/bin/activate" ]; then
-              echo "❌ venv creation FAILED — aborting"
+            if [ ! -f "hms/bin/activate" ]; then
+              echo "❌ hms creation failed"
               exit 1
             fi
 
-            source venv/bin/activate
+            source hms/bin/activate
 
             echo "📦 Installing Python dependencies"
-            pip install --upgrade pip
-            pip install -r requirements.txt
+            python -m pip install --upgrade pip
+            python -m pip install -r requirements.txt
 
-            echo "♻️ Restarting FastAPI with PM2"
+            echo "♻️ Restarting FastAPI via PM2 on port 6000"
 
             pm2 delete juristway-backend || true
 
-            pm2 start "venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000" \
+            pm2 start "hms/bin/uvicorn main:app --host 0.0.0.0 --port 6000" \
               --name juristway-backend
 
             pm2 save

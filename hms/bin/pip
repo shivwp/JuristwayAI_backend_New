@@ -1,4 +1,4 @@
-#!/Users/macbook/Documents/juristAI/hms/bin/python3.12
+#!/var/www/juristway/backend/hms/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

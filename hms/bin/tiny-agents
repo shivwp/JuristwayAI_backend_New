@@ -1,8 +1,6 @@
-#!/Users/macbook/Documents/juristAI/hms/bin/python3.12
-# -*- coding: utf-8 -*-
-import re
+#!/var/www/juristway/backend/hms/bin/python
 import sys
 from huggingface_hub.inference._mcp.cli import app
 if __name__ == '__main__':
-    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
     sys.exit(app())
