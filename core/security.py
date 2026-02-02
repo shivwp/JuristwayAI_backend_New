@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 import bcrypt
 
-# This fixes the Passlib / Bcrypt 4.0.0+ incompatibility
+# Passlib aur Bcrypt 4.0+ ki dushmani khatam karne ke liye
 if not hasattr(bcrypt, "__about__"):
     bcrypt.__about__ = type('About', (object,), {'__version__': bcrypt.__version__})
 # FIX: Explicitly setting the bcrypt backends helps avoid the 72-byte error

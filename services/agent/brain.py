@@ -48,7 +48,12 @@ llm = ChatGoogleGenerativeAI(
 # --- 2. LANGGRAPH WORKFLOW ---
 
 async def call_model(state: AgentState):
-    response = await llm.ainvoke(state["messages"])
+    system_prompt = {
+        "role": "system",
+        "content": "You are a senior legal expert. Use the search_legal_documents tool to find relevant laws. Always cite your sources in the format 'Source: filename.pdf'."
+    }
+    messages = [system_prompt] + state["messages"]
+    response = await llm.ainvoke(messages)
     return {"messages": [response]}
 
 def should_continue(state: AgentState):
@@ -68,38 +73,40 @@ agent_executor = workflow.compile(checkpointer=memory)
 # --- 3. ORCHESTRATION LOGIC ---
 
 async def run_juristway_ai(query: str, thread_id: str):
+    # 1. Redis Cache Check
     cache_key = f"cache:v1:{query.strip().lower()}"
-    
     try:
         cached_res = redis_client.get(cache_key)
         if cached_res: return {"answer": cached_res, "source": "redis", "link": None}
     except Exception: pass
 
+    # 2. LangGraph Execution
     config = {"configurable": {"thread_id": thread_id}}
     result = await agent_executor.ainvoke({"messages": [HumanMessage(content=query)]}, config)
     
     final_answer = result["messages"][-1].content
-    # Extract Source Reference
+
+    # 3. Source extraction (RegEx for UI links)
     source_pdf = None
+    follow_up_link = None
+    
+    # Tool output check kar rahe hain
     for msg in reversed(result["messages"]):
         if msg.type == "tool":
             match = re.search(r"Source:\s*([\w-]+\.pdf)", msg.content)
             if match:
                 source_pdf = match.group(1)
-                break
-            
-    follow_up_link = None
-    for msg in reversed(result["messages"]):
-        if msg.type == "tool":
-            # This regex will now catch the standardized 'Source: filename.pdf'
-            match = re.search(r"Source:\s*([\w-]+\.pdf)", msg.content)
-            if match:
-                follow_up_link = f"https://your-legal-docs.com/view/{match.group(1)}"
+                # Aapka S3 bucket ya local view link
+                follow_up_link = f"/api/view-pdf/{source_pdf}" 
                 break
 
-    # Cache the result
+    # 4. Cache update
     try:
         redis_client.setex(cache_key, 3600, final_answer)
     except Exception: pass
 
-    return {"answer": final_answer, "source": "llm", "link": follow_up_link}
+    return {
+        "answer": final_answer, 
+        "source": "llm" if not source_pdf else f"Document: {source_pdf}", 
+        "link": follow_up_link
+    }

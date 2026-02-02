@@ -1,0 +1,35 @@
+<jemalloc>: option background_thread currently supports pthread only
+           _                 _    
+  __ _  __| |_ __ __ _ _ __ | |_  
+ / _` |/ _` | '__/ _` | '_ \| __| 
+| (_| | (_| | | | (_| | | | | |_  
+ \__, |\__,_|_|  \__,_|_| |_|\__| 
+    |_|                           
+
+Version: 1.16.3, build: bd49f45a
+Access web UI at http://localhost:6333/dashboard
+
+2026-02-02T11:34:55.768185Z  WARN qdrant::settings: Config file not found: config/config
+2026-02-02T11:34:55.768243Z  WARN qdrant::settings: Config file not found: config/development
+2026-02-02T11:34:55.768553Z  INFO storage::content_manager::consensus::persistent: Loading raft state from ./storage/raft_state.json
+2026-02-02T11:34:55.772454Z  INFO qdrant: Distributed mode disabled
+2026-02-02T11:34:55.772498Z  INFO qdrant: Telemetry reporting enabled, id: 4604079f-672a-4410-a9f1-e9893ed121b6
+2026-02-02T11:34:56.271660Z  WARN qdrant::actix::web_ui: Static content folder for Web UI './static' does not exist
+2026-02-02T11:34:56.271718Z  INFO qdrant::actix: TLS disabled for REST API
+2026-02-02T11:34:56.271874Z  INFO qdrant::actix: Qdrant HTTP listening on 6333
+2026-02-02T11:34:56.271895Z  INFO actix_server::builder: starting 7 workers
+2026-02-02T11:34:56.271915Z  INFO actix_server::server: Actix runtime found; starting in Actix runtime
+2026-02-02T11:34:56.271926Z  INFO actix_server::server: starting service: "actix-web-service-0.0.0.0:6333", workers: 7, listening on: 0.0.0.0:6333
+2026-02-02T11:34:56.279528Z  INFO qdrant::tonic: Qdrant gRPC listening on 6334
+2026-02-02T11:34:56.279576Z  INFO qdrant::tonic: TLS disabled for gRPC API
+2026-02-02T11:36:10.936470Z  INFO actix_web::middleware::logger: 127.0.0.1 "PUT /collections/legal_knowledge/points?wait=true HTTP/1.1" 404 101 "-" "python-client/1.16.2 python/3.12.10" 0.021076
+2026-02-02T11:41:23.405011Z  INFO actix_web::middleware::logger: 127.0.0.1 "PUT /collections/legal_knowledge/points?wait=true HTTP/1.1" 404 97 "-" "python-client/1.16.2 python/3.12.10" 0.005773
+2026-02-02T11:42:40.238126Z  INFO storage::content_manager::toc::collection_meta_ops: Creating collection legal_knowledge
+2026-02-02T11:42:41.027505Z  INFO actix_web::middleware::logger: 127.0.0.1 "PUT /collections/legal_knowledge HTTP/1.1" 200 48 "-" "curl/8.13.0" 0.795804
+2026-02-02T11:43:16.052780Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /dashboard HTTP/1.1" 404 0 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" 0.020166
+2026-02-02T11:43:17.561814Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /dashboard HTTP/1.1" 404 0 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" 0.000204
+2026-02-02T11:43:19.138853Z  INFO actix_web::middleware::logger: 127.0.0.1 "GET /dashboard HTTP/1.1" 404 0 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" 0.000115
+2026-02-02T11:46:03.511946Z  INFO storage::content_manager::toc::collection_meta_ops: Deleting collection legal_knowledge
+2026-02-02T11:46:03.518775Z  INFO actix_web::middleware::logger: 127.0.0.1 "DELETE /collections/legal_knowledge HTTP/1.1" 200 48 "-" "curl/8.13.0" 0.007956
+2026-02-02T11:46:28.857889Z  INFO storage::content_manager::toc::collection_meta_ops: Creating collection legal_knowledge
+2026-02-02T11:46:29.620082Z  INFO actix_web::middleware::logger: 127.0.0.1 "PUT /collections/legal_knowledge HTTP/1.1" 200 48 "-" "curl/8.13.0" 0.762492

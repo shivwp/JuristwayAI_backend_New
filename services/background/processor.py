@@ -1,26 +1,60 @@
 import asyncio
 import os
+import logging
 from services.ingestion.pdf_engine import PDFManager
-from core.database import get_knowledge_base_collection, connect_to_mongo
+from core.database import get_documents_collection, connect_to_mongo
 from dotenv import load_dotenv
+
 load_dotenv()
+logger = logging.getLogger(__name__)
+
+# PDFManager instance
 pdf_manager = PDFManager()
 
-async def process_document_job(job, vector_store):
+async def process_document_job(doc_metadata: dict):
+    """
+    Purane code ka naya version jo Qdrant use karega aur file delete nahi karega.
+    """
     await connect_to_mongo()
-    collection = get_knowledge_base_collection()
-    
-    loop = asyncio.get_running_loop()
-    try:
-        chunks = await loop.run_in_executor(None, pdf_manager.process_pdf, job["file_path"])
-        
-        records = [{
-            "embedding": c["embedding"],
-            "text": c["chunk_text"],
-            "metadata": {**job, "page": c["page_num"]}
-        } for c in chunks]
+    collection = get_documents_collection()    
+    stored_name = doc_metadata["stored_name"]
+    file_path = doc_metadata["file_path"]
+    owner_email = doc_metadata["owner"]
 
-        await collection.insert_many(records, ordered=False)
-    finally:
-        if os.path.exists(job["file_path"]):
-            os.remove(job["file_path"])
+    try:
+        # 1. Update Status: Processing start
+        await collection.update_one(
+            {"stored_name": stored_name},
+            {"$set": {"status": "processing"}}
+        )
+
+        # 2. PDF Processing
+        # Humne pdf_engine.py mein 'save_to_mongo_and_qdrant' method banaya tha
+        # Jo embedding banakar Qdrant mein daalta hai
+        num_chunks = await pdf_manager.save_to_mongo_and_qdrant(
+            pdf_path=file_path,
+            document_name=stored_name,
+            user_email=owner_email
+        )
+
+        # 3. Update Status: Success
+        await collection.update_one(
+            {"stored_name": stored_name},
+            {
+                "$set": {
+                    "status": "ready",
+                    "chunks_count": num_chunks
+                }
+            }
+        )
+        logger.info(f"✅ Successfully processed {stored_name}")
+
+    except Exception as e:
+        logger.error(f"❌ Error processing {stored_name}: {str(e)}")
+        await collection.update_one(
+            {"stored_name": stored_name},
+            {"$set": {"status": "failed", "error": str(e)}}
+        )
+    
+    # NOTE: Yahan 'os.remove' mat karna! 
+    # Humein file 'storage/pdfs' mein chahiye taaki user use dekh sake.

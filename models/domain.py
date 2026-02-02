@@ -98,7 +98,7 @@ class ContentLibraryStats(BaseModel):
     processing: int
     total_chunks: int
 
-class DocumentResponse(BaseModel):
+class DocumentOut(BaseModel):
     id: PyObjectId = Field(alias="_id")
     title: str
     file_name: str
