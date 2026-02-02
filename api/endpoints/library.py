@@ -63,10 +63,10 @@ async def view_pdf(stored_name: str):
         headers={"Content-Disposition": f"inline; filename={stored_name}"}
     )
 
-@router.get("/", response_model=List[DocumentOut])
-async def list_my_documents(current_user: str = Depends(get_current_user_email)):
-    cursor = get_documents_collection().find({"owner": current_user})
-    docs = await cursor.to_list(length=100)
-    # Ensure MongoDB _id is string for frontend
-    for d in docs: d["_id"] = str(d["_id"])
-    return docs
+# @router.get("/", response_model=List[DocumentOut])
+# async def list_my_documents(current_user: str = Depends(get_current_user_email)):
+#     cursor = get_documents_collection().find({"owner": current_user})
+#     docs = await cursor.to_list(length=100)
+#     # Ensure MongoDB _id is string for frontend
+#     for d in docs: d["_id"] = str(d["_id"])
+#     return docs

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 
 from core.database import get_chats_collection
-from core.security import get_current_active_user
+from core.security import get_current_active_user, get_current_user_email
 from models.domain import ChatRequest, ChatResponse
 from services.agent.brain import run_juristway_ai
 from dotenv import load_dotenv
@@ -99,3 +99,27 @@ async def get_chat(chat_id: str, current_user: dict = Depends(get_current_active
     if not chat: raise HTTPException(404, "Chat not found")
     chat["_id"] = str(chat["_id"])
     return chat
+
+
+# single chat history with particular thread ID delete
+@router.delete("/chat/thread/{chat_id}")
+async def delete_chat_thread(
+    chat_id: str, 
+    current_user: str = Depends(get_current_user_email)
+):
+    """Deletes all chat messages associated with a specific thread_id for the current user."""
+    chat_coll = get_chats_collection() # MongoDB collection 
+    
+    # Delete messages matching thread_id and user_email
+    result = await chat_coll.delete_many({
+        "_id": ObjectId(chat_id),
+        "user_id": current_user
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=404, 
+            detail="Thread not found or you don't have permission to delete it."
+        )
+    
+    return {"message": f"Successfully deleted {result.deleted_count} messages from thread {chat_id}."}
