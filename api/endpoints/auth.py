@@ -148,3 +148,21 @@ async def reset_password(payload: ResetPasswordRequest):
     )
 
     return {"message": "Password has been reset successfully"}
+
+
+@router.get("/profile")
+async def get_profile(current_user: dict = Depends(get_current_user)):
+    """
+    Ye endpoint login user ki profile return karega.
+    """
+    # MongoDB se user object milne par '_id' ObjectID hota hai jo JSON serializable nahi hota,
+    # Isliye hum use string mein convert kar dete hain.
+    current_user["_id"] = str(current_user["_id"])
+    
+    # Security ke liye sensitive data (like password) hata dete hain
+    if "hashed_password" in current_user:
+        del current_user["hashed_password"]
+    if "password_reset_token_hash" in current_user:
+        del current_user["password_reset_token_hash"]
+
+    return current_user
