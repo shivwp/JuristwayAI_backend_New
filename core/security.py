@@ -9,26 +9,33 @@ from core.database import get_users_collection
 from models.domain import TokenData
 from dotenv import load_dotenv
 load_dotenv()
+import bcrypt
+
+# This fixes the Passlib / Bcrypt 4.0.0+ incompatibility
+if not hasattr(bcrypt, "__about__"):
+    bcrypt.__about__ = type('About', (object,), {'__version__': bcrypt.__version__})
 # FIX: Explicitly setting the bcrypt backends helps avoid the 72-byte error
 # though downgrading bcrypt to 4.0.1 is still recommended.
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__ident="2b")
 # FIXED: Added leading slash to ensure the Swagger UI finds the correct route
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verify a plain password against a hash.
-    Note: Passlib + Bcrypt has a 72-char limit.
-    """
-    try:
-        return pwd_context.verify(plain_password, hashed_password)
-    except ValueError:
-        # This catches cases where the library rejects the check due to version mismatches
-        return False
+    # DB se aaya hash string ko bytes mein convert karein
+    password_byte_enc = plain_password.encode('utf-8')
+    hashed_password_bytes = hashed_password.encode('utf-8')
+    
+    # Direct bcrypt library se check karein
+    return bcrypt.checkpw(password_byte_enc, hashed_password_bytes)
     
 def get_password_hash(password: str) -> str:
-    """Hash a password for storage."""
-    return pwd_context.hash(password)
+    # Password ko bytes mein convert karke hash karein
+    pwd_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(pwd_bytes, salt)
+    return hashed_password.decode('utf-8')
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()

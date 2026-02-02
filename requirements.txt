@@ -1,29 +1,22 @@
-# --- Web Framework ---
-fastapi==0.115.*
-uvicorn[standard]==0.34.*
-pydantic==2.10.*
-pydantic-settings==2.7.*
-
-# --- Database & Security ---
-motor==3.6.* # Async MongoDB
-pymongo==4.9.*
-python-jose[cryptography]==3.3.*
-passlib[bcrypt]==1.7.*
-python-multipart    # Required for file uploads
-
-# --- LangGraph & AI ---
-langchain-google-genai==2.0.*
-langgraph==0.2.*
-langgraph-checkpoint-mongodb==0.1.*
-langchain-core==0.3.*
-
-# --- Document Processing ---
-pdf2image==1.17.*
-pytesseract==0.3.*
-Pillow==11.0.*
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+motor
+pymongo
+python-jose[cryptography]
+bcrypt==4.0.1
+passlib[bcrypt]
+python-multipart
+# AI & Document stuff
+langchain-google-genai
+langgraph
+langgraph-checkpoint-mongodb
+langchain-core
+pdf2image
+pytesseract
+Pillow
 chromadb
 redis
 langchain-chroma
-pydantic[email]
 email-validator
-
