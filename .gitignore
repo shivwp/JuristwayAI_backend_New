@@ -23,3 +23,7 @@ test.py
 SETUP_GUIDE.md
 
 hms
+qdrant
+storage/
+__pycache__/
+.env
