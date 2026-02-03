@@ -563,6 +563,61 @@ async def get_all_plans():
             
     return jsonable_encoder(plans)
 
+# edit any plan endpoint
+
+@router.patch("/edit/plans/{plan_id}")
+async def update_plan(
+    plan_id: str,
+    name: Optional[str] = Form(None),
+    price: Optional[float] = Form(None),
+    description: Optional[str] = Form(None),
+    is_active: Optional[bool] = Form(None),
+    admin: dict = Depends(admin_required)
+):
+    collection = get_plans_collection()
+    
+    # Data collect karein
+    update_data = {}
+    if name: update_data["name"] = name
+    if price is not None: update_data["price"] = price
+    if description: update_data["description"] = description
+    if is_active is not None: update_data["is_active"] = is_active
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No update data provided")
+
+    try:
+        query_id = ObjectId(plan_id)
+    except:
+        query_id = plan_id
+
+    result = await collection.update_one({"_id": query_id}, {"$set": update_data})
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    return {"status": "success", "message": "Plan updated successfully"}
+
+# delete any plan endpoint
+@router.delete("/delete/plans/{plan_id}")
+async def delete_plan(
+    plan_id: str, 
+    admin: dict = Depends(admin_required)
+):
+    collection = get_plans_collection()
+    
+    try:
+        query_id = ObjectId(plan_id)
+    except:
+        query_id = plan_id
+
+    result = await collection.delete_one({"_id": query_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Plan deletion failed - ID not found")
+        
+    return {"status": "success", "message": "Plan deleted successfully"}
+
 # ---------------------------------------------------------------------------------------------------------------------
 # token usage analysis endpoints ------------------------------------------------------------------------------------
 # -------------------------------------------------------------------------------------------------------------------
