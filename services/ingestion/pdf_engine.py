@@ -139,7 +139,7 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from qdrant_client.http import models
 # Qdrant Client Setup (Local ya server IP)
-qdrant_client = QdrantClient(host="localhost", port=6333) 
+qdrant_client = QdrantClient(host="127.0.0.1", port=6333, check_compatibility=False) 
 COLLECTION_NAME = "legal_knowledge"
 
 executor = ProcessPoolExecutor(max_workers=4)
@@ -154,7 +154,7 @@ class PDFManager:
     def __init__(self, overlap_ratio: float = 0.2):
         self.overlap_ratio = overlap_ratio
         # Gemini Embedding Setup (3072 dims)
-        self.client = QdrantClient(host="localhost", port=6333)
+        self.client = QdrantClient(host="127.0.0.1", port=6333, check_compatibility=False)
         self.collection_name = "legal_knowledge"
         self.embeddings = GoogleGenerativeAIEmbeddings(
             model="models/gemini-embedding-001", # Latest optimized model
