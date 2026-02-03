@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi.encoders import jsonable_encoder
 from core.security import get_current_user, get_current_user_email
 from core.database import get_database, get_embedding_vector, get_plans_collection, get_settings_collection, get_subscriptions_collection, get_token_usage_collection, get_users_collection, get_documents_collection, get_knowledge_base_collection
-from models.domain import ContentLibraryResponse, ContentLibraryStats, DocumentOut, DocumentStatus, PlanCreate, PlanResponse, SubscriptionResponse, SubscriptionTier, SystemSettings, UserBase, UserSettingsResponse, UserStatus
+from models.domain import ContentLibraryResponse, ContentLibraryStats, DocumentOut, DocumentStatus, PlanCreate, PlanResponse, SubscriptionResponse, SubscriptionTier, SystemSettings, UserAdminUpdate, UserBase, UserSettingsResponse, UserStatus
 from fastapi import UploadFile, File
 from bson import ObjectId
 from datetime import datetime, timedelta, timezone
@@ -353,6 +353,79 @@ async def toggle_admin_privileges(
 #     await users_coll.token_usage.delete_many({"user_id": user_id})
     
 #     return {"message": "User deleted successfully"}
+
+
+
+# action buttons endpoints for user management ----------------------------------------------------------------
+# 1. GET Single User Details (Edit Popup ke liye)
+@router.get("/actions/{user_id}")
+async def get_user_for_edit(user_id: str, admin: dict = Depends(admin_required)):
+    collection = get_users_collection()
+    try:
+        # Pehle ObjectId se search karein
+        user = await collection.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            # Agar nahi mila toh string ID se search karein
+            user = await collection.find_one({"_id": user_id})
+    except:
+        # Agar conversion fail ho toh direct string search
+        user = await collection.find_one({"_id": user_id})
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User records not found in database")
+    user["_id"] = str(user["_id"])
+    return user
+
+# 2. UPDATE User (Edit Save karne par)
+@router.patch("/edit/actions/{user_id}")
+async def update_user_admin(user_id: str, update_data: UserAdminUpdate, admin: dict = Depends(admin_required)):
+    collection = get_users_collection()
+    
+    update_dict = {k: v for k, v in update_data.model_dump().items() if v is not None}
+    
+    if not update_dict:
+        raise HTTPException(status_code=400, detail="no update data provided")
+
+    # FIX: user_id ko ObjectId() mein wrap karein
+    try:
+        query_id = ObjectId(user_id)
+    except:
+        # Agar conversion fail ho toh direct string use karein (backup)
+        query_id = user_id
+
+    result = await collection.update_one(
+        {"_id": query_id}, 
+        {"$set": update_dict}
+    )
+    
+    if result.matched_count == 0:
+        # Ab ye error tabhi aayega jab sach mein wo ID DB mein na ho
+        raise HTTPException(status_code=404, detail="user update failed - ID not found")
+        
+    return {"status": "success", "message": "User details updated successfully"}
+
+# 3. DELETE User (Delete Action)
+@router.delete("/actions/delete/{user_id}")
+async def delete_user_admin(user_id: str, admin: dict = Depends(admin_required)):
+    collection = get_users_collection()
+    admin_id = admin.get("_id") if isinstance(admin, dict) else admin
+    # Security Check: Admin khud ko delete na kar le
+    if user_id == str(admin_id):
+        raise HTTPException(status_code=400, detail="Cannot delete your own admin account")
+
+    # 2. Convert string ID to MongoDB ObjectId for the query
+    try:
+        query_id = ObjectId(user_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid User ID format")
+
+    result = await collection.delete_one({"_id": query_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User deletion failed - User not found")
+        
+    return {"status": "success", "message": "User permanently deleted"}
+
 
 
 # ---------------------------------------------------------------------------------------------------------------
