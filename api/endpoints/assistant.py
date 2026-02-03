@@ -2,9 +2,9 @@ from typing import List
 from bson import ObjectId
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
-
+from bson import ObjectId
 from core.database import get_chats_collection
-from core.security import get_current_active_user, get_current_user_email
+from core.security import get_current_active_user, get_current_user, get_current_user_email, get_current_user_id
 from models.domain import ChatRequest, ChatResponse
 from services.agent.brain import run_juristway_ai
 from dotenv import load_dotenv
@@ -101,25 +101,35 @@ async def get_chat(chat_id: str, current_user: dict = Depends(get_current_active
     return chat
 
 
-# single chat history with particular thread ID delete
+
+
+# single chat history with particular thread ID deletion
+
+
 @router.delete("/chat/thread/{chat_id}")
 async def delete_chat_thread(
     chat_id: str, 
-    current_user: str = Depends(get_current_user_email)
+    current_user_id: str = Depends(get_current_user_id) # Naya function use kiya
 ):
-    """Deletes all chat messages associated with a specific thread_id for the current user."""
-    chat_coll = get_chats_collection() # MongoDB collection 
+    chat_coll = get_chats_collection()
     
-    # Delete messages matching thread_id and user_email
-    result = await chat_coll.delete_many({
-        "_id": ObjectId(chat_id),
-        "user_id": current_user
-    })
-    
-    if result.deleted_count == 0:
-        raise HTTPException(
-            status_code=404, 
-            detail="Thread not found or you don't have permission to delete it."
-        )
-    
-    return {"message": f"Successfully deleted {result.deleted_count} messages from thread {chat_id}."}
+    try:
+        # DB mein thread ki main ID '_id' hai jo ObjectId format mein hai
+        query = {
+            "_id": ObjectId(chat_id), 
+            "user_id": current_user_id # Ye string match karega "697c92..." se
+        }
+        
+        result = await chat_coll.delete_one(query)
+        
+        if result.deleted_count == 0:
+            raise HTTPException(
+                status_code=404, 
+                detail="Thread not found or unauthorized access."
+            )
+        
+        return {"message": "Thread deleted successfully"}
+        
+    except Exception as e:
+        # Agar chat_id galat format mein ho (not a valid ObjectId)
+        raise HTTPException(status_code=400, detail="Invalid Chat ID format")

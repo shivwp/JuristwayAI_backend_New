@@ -1,3 +1,5 @@
+from email.message import EmailMessage
+import aiosmtplib
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from core.security import verify_password, create_access_token, get_current_user, get_password_hash
@@ -12,8 +14,17 @@ from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta, timezone
 import hashlib
 import secrets
+import os
 from dotenv import load_dotenv
 load_dotenv()
+
+
+SMTP_SERVER = os.getenv("SMTP_SERVER")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+SMTP_USER = os.getenv("SMTP_USER")
+SMTP_KEY = os.getenv("SMTP_KEY")    
+
 
 router = APIRouter()
 
@@ -76,7 +87,7 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
-    token: str
+    token: str # reset otp sent via email
     new_password: str
 
 
@@ -86,18 +97,47 @@ def _hash_reset_token(token: str) -> str:
     """
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
+async def send_reset_email(receiver_email: str, otp: str):
+    """Utility function to send email via Brevo"""
+    message = EmailMessage()
+    message["From"] = f"Juristway Support <{SENDER_EMAIL}>"
+    message["To"] = receiver_email
+    message["Subject"] = f"{otp} is your Password Reset Code"
+    
+    html_body = f"""
+    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 500px;">
+        <h2 style="color: #1a73e8;">Password Reset Request</h2>
+        <p>Use the following code to reset your password. This code is valid for 30 minutes:</p>
+        <h1 style="background: #f1f3f4; padding: 10px; text-align: center; letter-spacing: 5px; color: #333;">{otp}</h1>
+        <p>If you didn't request this, please ignore this email.</p>
+        <hr>
+        <p style="font-size: 12px; color: #888;">Team Juristway AI</p>
+    </div>
+    """
+    message.add_alternative(html_body, subtype="html")
+    
+    try:
+        await aiosmtplib.send(
+            message,
+            hostname=SMTP_SERVER,
+            port=SMTP_PORT,
+            username=SMTP_USER,
+            password=SMTP_KEY,
+            start_tls=True,
+        )
+        return True
+    except Exception as e:
+        print(f"❌ SMTP Error: {str(e)}")
+        return False
 
 @router.post("/forgot-password")
 async def forgot_password(payload: ForgotPasswordRequest):
-    """
-    Initiates password reset for both users and admins (same users collection).
-    Always returns a generic message to avoid user enumeration.
-    """
     users_coll = get_users_collection()
     user = await users_coll.find_one({"email": payload.email})
 
     if user:
-        raw_token = secrets.token_urlsafe(32)
+        # 6 digit ka secure OTP generate karo
+        raw_token = str(secrets.randbelow(899999) + 100000) 
         token_hash = _hash_reset_token(raw_token)
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
 
@@ -106,17 +146,17 @@ async def forgot_password(payload: ForgotPasswordRequest):
             {"$set": {"password_reset_token_hash": token_hash, "password_reset_expires_at": expires_at}},
         )
 
-        # NOTE: No SMTP/email service in repo yet. Once you add it, email `raw_token` here.
-        # For now, we intentionally do NOT return the token (security).
+        # SMTP Call to send email
+        email_sent = await send_reset_email(payload.email, raw_token)
+        if not email_sent:
+            # Optionally log error or handle it
+            print(f"❌ Failed to send password reset email to {payload.email}")
 
-    return {"message": "A password reset link/code has been sent to your email. Please check your inbox."}
+    return {"message": "A password reset code has been sent to your email if it exists in our system."}
 
 
 @router.post("/reset-password")
 async def reset_password(payload: ResetPasswordRequest):
-    """
-    Completes password reset using email + token + new password.
-    """
     users_coll = get_users_collection()
     user = await users_coll.find_one({"email": payload.email})
     if not user:
@@ -127,7 +167,6 @@ async def reset_password(payload: ResetPasswordRequest):
     if not token_hash or not expires_at:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token or expired token")
 
-    # Motor typically returns timezone-aware datetimes; handle naive just in case.
     now = datetime.now(timezone.utc)
     if isinstance(expires_at, datetime) and expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)

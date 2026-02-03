@@ -43,6 +43,8 @@ async def lifespan(app: FastAPI):
     yield
 
     await close_mongo_connection()
+    # This forces the script to wait until all traces are uploaded
+    wait_for_all_tracers()
     logger.info("✅ Database Connection Closed")
 
 app = FastAPI(lifespan=lifespan)
@@ -76,7 +78,7 @@ app.include_router(library.router, prefix="/api/library", tags=["Document Librar
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://api.juristway.com", "http://localhost:8000"],
+    allow_origins=["https://api.juristway.com", "http://localhost:8000", "https://juristway.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -91,8 +93,6 @@ async def health_check():
     return {"status": "healthy"}
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 
 
-# This forces the script to wait until all traces are uploaded
-wait_for_all_tracers()

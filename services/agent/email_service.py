@@ -1,0 +1,38 @@
+import random
+import aiosmtplib
+from email.message import EmailMessage
+
+async def send_otp_via_brevo(receiver_email: str):
+    # 1. Generate 6-digit OTP
+    otp = f"{random.randint(100000, 999999)}"
+    
+    # 2. Setup Email Content
+    message = EmailMessage()
+    message["From"] = "Juristway Support <support@juristway.com>" # Verify this email on Brevo
+    message["To"] = receiver_email
+    message["Subject"] = f"{otp} is your Juristway Reset Code"
+    
+    html_body = f"""
+    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd;">
+        <h2 style="color: #1a73e8;">Password Reset</h2>
+        <p>Use the following OTP to reset your password. Valid for 10 minutes:</p>
+        <h1 style="background: #f1f3f4; padding: 10px; text-align: center; letter-spacing: 5px;">{otp}</h1>
+        <p>If you didn't request this, please ignore this email.</p>
+    </div>
+    """
+    message.add_alternative(html_body, subtype="html")
+
+    # 3. Connect and Send (Async)
+    try:
+        await aiosmtplib.send(
+            message,
+            hostname="smtp-relay.brevo.com",
+            port=587,
+            username="76eb7c001@smtp-brevo.com",
+            password="TERI_BREVO_SMTP_KEY", # <--- Apni key yahan daal
+            start_tls=True,
+        )
+        return otp
+    except Exception as e:
+        print(f"❌ SMTP Error: {str(e)}")
+        return None
