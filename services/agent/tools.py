@@ -25,29 +25,25 @@ qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
 
 @tool
 async def search_legal_documents(query: str):
-    """Searches the Qdrant vector database for relevant legal documents and PDF chunks.
-    Use this tool for any questions related to laws, sections, or uploaded PDF content.
-    """
+    """Searches the Qdrant vector database for relevant legal documents and PDF chunks."""
     try:
         # 1. Query ko embedding mein convert karo
-        # Note: embed_query list return karta hai
         query_vector = embeddings_model.embed_query(query)
 
         # 2. Qdrant mein similarity search karo
-        search_results = qdrant_client.search(
+        search_response = qdrant_client.query_points(
             collection_name=COLLECTION_NAME,
-            query_vector=query_vector,
-            limit=10  # Aapne 10 chunks kaha tha
+            query=query_vector,
+            limit=10
         )
 
-        if not search_results:
+        if not search_response.points:
             return "No relevant legal documents found in the database."
 
-        # 3. Formatted string banao jo Gemini (Brain) samajh sake
-        # Hum wahi format use kar rahe hain jo brain.py ka regex 'Source: filename.pdf' dhoondh raha hai
+        # 3. Formatted string banao (Yahan change hai)
         formatted_chunks = []
-        for res in search_results:
-            metadata = res.payload
+        for point in search_response.points: # <--- .points par loop chalana hai
+            metadata = point.payload
             chunk_text = (
                 f"Source: {metadata.get('document_name', 'unknown.pdf')}\n"
                 f"Page: {metadata.get('page_num', 'N/A')}\n"

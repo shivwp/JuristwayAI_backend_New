@@ -123,8 +123,9 @@ async def send_reset_email(receiver_email: str, otp: str):
             port=SMTP_PORT,
             username=SMTP_USER,
             password=SMTP_KEY,
-            start_tls=True,
+            start_tls=False,
         )
+        print(f"✅ Password reset email sent to {receiver_email}")
         return True
     except Exception as e:
         print(f"❌ SMTP Error: {str(e)}")

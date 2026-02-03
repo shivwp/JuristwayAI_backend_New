@@ -40,9 +40,11 @@ embeddings = GoogleGenerativeAIEmbeddings(
 
 # LLM with Tool Binding
 llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
+    model="gemini-2.5-flash-lite",
     google_api_key=settings.GEMINI_API_KEY,
-    streaming=True
+    streaming=True,
+    temperature=0.2,
+    max_output_tokens=2048
 ).bind_tools(legal_tools)
 
 # --- 2. LANGGRAPH WORKFLOW ---

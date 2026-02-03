@@ -79,6 +79,7 @@ async def send_message(
         final_message = raw_answer[0].get("text", "I'm sorry, I couldn't process that.")
     else:
         final_message = str(raw_answer)
+    print(f"DEBUG FINAL RESPONSE: {final_message}") # Check in terminal
 
     return ChatResponse(
         message=final_message,
