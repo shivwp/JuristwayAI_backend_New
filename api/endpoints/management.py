@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status,  UploadFile, File
 from typing import List, Optional
 
 from fastapi.encoders import jsonable_encoder
-from core.security import get_current_user, get_current_user_email
+from core.security import get_current_user, get_current_user_email, get_password_hash
 from core.database import get_database, get_embedding_vector, get_plans_collection, get_settings_collection, get_subscriptions_collection, get_token_usage_collection, get_users_collection, get_documents_collection, get_knowledge_base_collection
 from models.domain import ContentLibraryResponse, ContentLibraryStats, DocumentOut, DocumentStatus, PlanCreate, PlanResponse, SubscriptionResponse, SubscriptionTier, SystemSettings, UserAdminUpdate, UserBase, UserSettingsResponse, UserStatus
 from fastapi import UploadFile, File
@@ -214,73 +214,50 @@ async def get_user_by_id(user_id: str, current_admin: str = Depends(admin_requir
     return pydantic_dict(user)
 
 
-@router.put("/users/{user_id}")
-async def update_user(
-    user_id: str,
-    name: Optional[str] = Form(None),
-    email: Optional[str] = Form(None),
-    plan: Optional[str] = Form(None),
-    current_user: dict = Depends(admin_required)
+@router.post("/add/newuser") # Naya user hai toh POST use karenge
+async def create_new_user_admin(
+    full_name: str = Form(...),       # Required
+    email: str = Form(...),                # Required
+    plan: str = Form("Free"),         # Default: Free
+    account_status: str = Form("Active"),     # Default: Active
+    inititial_tokens_amount: int = Form(0),  # Default: 0
+    current_admin: dict = Depends(admin_required)
 ):
-    """Update user details"""
     users_coll = get_users_collection()
-    update_data = {}
 
-    if name:
-        update_data["full_name"] = name
+    # 1. Check karein user pehle se toh nahi hai
+    existing_user = await users_coll.find_one({"email": email})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User with this email already exists")
 
-    # Fetch existing user so we can cascade email changes if needed
-    try:
-        obj_id = ObjectId(user_id)
-    except InvalidId:
-        raise HTTPException(status_code=400, detail="Invalid User ID format")
+    # 2. Plan ke hisaab se tokens set karein
+    tokens_map = {
+        "Free": 10000,
+        "Pro": 100000,
+        "Enterprise": 500000
+    }
+    initial_tokens = tokens_map.get(plan, 10000)
 
-    existing_user = await users_coll.find_one({"_id": obj_id})
-    if not existing_user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # 3. New User Object 
+    new_user = {
+        "full_name": full_name,
+        "email": email,
+        "plan": plan,
+        "tokens_remaining": initial_tokens,
+        "account_status": account_status,
+        "initial_tokens_amount": inititial_tokens_amount
+    }
 
-    old_email = existing_user.get("email")
-
-    if email:
-        update_data["email"] = email
-    if plan:
-        # Update tokens based on plan
-        if plan == "Free":
-            update_data["tokens_remaining"] = 10000
-        elif plan == "Pro":
-            update_data["tokens_remaining"] = 100000
-        elif plan == "Enterprise":
-            update_data["tokens_remaining"] = 500000
-
-    if not update_data:
-        return {"message": "No changes provided"}
-
-    # 1) Update primary user record
-    result = await users_coll.update_one({"_id": obj_id}, {"$set": update_data})
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # 2) If email changed, cascade to related collections
-    new_email = update_data.get("email")
-    if new_email and old_email and new_email != old_email:
-        subs_coll = get_subscriptions_collection()
-        token_usage_coll = get_token_usage_collection()
-        docs_coll = get_documents_collection()
-
-        await subs_coll.update_many(
-            {"user_email": old_email},
-            {"$set": {"user_email": new_email}}
-        )
-        await token_usage_coll.update_many(
-            {"user_email": old_email},
-            {"$set": {"user_email": new_email}}
-        )
-        await docs_coll.update_many(
-            {"owner": old_email},
-            {"$set": {"owner": new_email}}
-        )
-
-    return {"message": "User updated successfully"}
+    # 4. Database mein insert karein
+    result = await users_coll.insert_one(new_user)
+    
+    return {
+        "status": "success", 
+        "message": "New user created successfully",
+        "user_id": str(result.inserted_id),
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
+    }
 
 # These endpoints allow you to take direct action on an account, such as banning a user or promoting them to an administrator.
 @router.patch("/users/{user_id}/status")
