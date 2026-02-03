@@ -159,7 +159,7 @@ class PDFManager:
         self.embeddings = GoogleGenerativeAIEmbeddings(
             model="models/gemini-embedding-001", # Latest optimized model
             google_api_key=settings.GEMINI_API_KEY,
-            output_dimensionality=3072
+            output_dimensionality=768,
         )
 
     def process_pdf(self, pdf_path: str) -> List[Dict]:

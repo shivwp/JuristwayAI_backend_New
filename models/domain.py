@@ -113,6 +113,16 @@ class DocumentOut(BaseModel):
         "arbitrary_types_allowed": True,
     }
 
+class ContentLibraryResponse(BaseModel):
+    id: str
+    title: str
+    file_name: str
+    file_type: str
+    size: str  # e.g., "2.4 MB"
+    upload_date: datetime
+    status: str  # e.g., "Processed", "Processing", "Failed"
+    chunks: int
+
 class KnowledgeBaseEntry(BaseModel):
     document_id: str
     text: str
@@ -133,6 +143,22 @@ class SubscriptionResponse(BaseModel):
     auto_renew: bool = True
 
     
+
+class PlanBase(BaseModel):
+    name: str
+    description: str
+    price: float
+    interval: str = ["monthly", "yearly"]  # monthly or yearly
+    tokens: int
+    features: List[str]
+    is_active: bool = True
+
+class PlanCreate(PlanBase):
+    pass
+
+class PlanResponse(PlanBase):
+    id: str = Field(alias="_id")
+    created_at: datetime
 
 # --- SYSTEM SETTINGS MODELS ---
 
@@ -163,3 +189,12 @@ class SystemSettings(BaseModel):
     dataRetention: int = 90
     
     updated_at: Optional[datetime] = None
+
+
+class UserSettingsResponse(BaseModel):
+    name: str
+    email: EmailStr
+    notifications_enabled: bool = True
+    version: str = "1.0.0"
+    # Additional flags agar zaroorat ho
+    is_premium: bool = False

@@ -1,9 +1,12 @@
 from time import timezone
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, status,  UploadFile, File, Form
 from typing import List, Optional
-from core.security import get_current_user_email
+
+from fastapi.encoders import jsonable_encoder
+from core.security import get_current_user, get_current_user_email
 from core.database import get_database, get_embedding_vector, get_plans_collection, get_settings_collection, get_subscriptions_collection, get_token_usage_collection, get_users_collection, get_documents_collection, get_knowledge_base_collection
-from models.domain import ContentLibraryStats, DocumentStatus, SubscriptionResponse, SubscriptionTier, SystemSettings, UserBase, UserStatus
+from models.domain import ContentLibraryResponse, ContentLibraryStats, DocumentOut, DocumentStatus, PlanCreate, PlanResponse, SubscriptionResponse, SubscriptionTier, SystemSettings, UserBase, UserSettingsResponse, UserStatus
 from fastapi import UploadFile, File
 from bson import ObjectId
 from datetime import datetime, timedelta, timezone
@@ -482,8 +485,33 @@ async def admin_cancel_subscription(sub_id: str, current_admin: str = Depends(ad
         
     return {"message": "Subscription cancelled successfully"}
 
+# --------------------------------------------------------------------------------------
+# plan management endpoints ------------------------------------------------------
+# ------------------------------------------------------------------------------------
 
+@router.post("/plans/create", dependencies=[Depends(admin_required)])
+async def create_plan(plan: PlanCreate):
+    collection = get_plans_collection()
+    
+    plan_dict = plan.model_dump()
+    plan_dict["_id"] = str(uuid.uuid4())
+    plan_dict["created_at"] = datetime.now(timezone.utc)
+    
+    await collection.insert_one(plan_dict)
+    return {"status": "success", "message": "Plan created successfully", "plan_id": plan_dict["_id"]}
 
+@router.get("/plans/all", dependencies=[Depends(admin_required)])
+async def get_all_plans():
+    collection = get_plans_collection()
+
+    plans = await collection.find().sort("created_at", -1).to_list(length=100)
+    
+    # ERROR FIX: ObjectId ko string mein convert karein
+    for plan in plans:
+        if "_id" in plan:
+            plan["_id"] = str(plan["_id"])
+            
+    return jsonable_encoder(plans)
 
 # ---------------------------------------------------------------------------------------------------------------------
 # token usage analysis endpoints ------------------------------------------------------------------------------------
@@ -734,6 +762,43 @@ async def delete_document(doc_id: str, current_admin: str = Depends(admin_requir
     return {"message": "Document and knowledge base entries deleted successfully."}
 
 
+# to show uploaded documents in admin content library page
+@router.get("/show/documents", response_model=List[ContentLibraryResponse])
+async def get_content_library(admin: dict = Depends(admin_required)):
+    collection = get_knowledge_base_collection()
+    
+    # Hum saare unique pdf_id ke basis par documents nikalenge
+    # Taki table mein duplicates na aayein (kyunki ek PDF ke many chunks hote hain)
+    pipeline = [
+        {
+            "$group": {
+                "_id": "$pdf_id",
+                "title": {"$first": "$document_name"},
+                "file_name": {"$first": "$document_name"}, # Agar alag field hai toh wo use karein
+                "upload_date": {"$first": "$timestamp"},
+                "chunks_count": {"$sum": 1}
+            }
+        },
+        {"$sort": {"upload_date": -1}} # Naye files upar dikhane ke liye
+    ]
+    
+    cursor = collection.aggregate(pipeline)
+    docs = await cursor.to_list(length=100)
+    
+    formatted_docs = []
+    for doc in docs:
+        formatted_docs.append({
+            "id": str(doc["_id"]),
+            "title": doc["title"],
+            "file_name": doc["file_name"],
+            "file_type": "PDF", # Default PDF kyunki OCR pdf se ho raha hai
+            "size": "N/A", # Agar aapne file size save kiya hai toh wo yahan aayega
+            "upload_date": doc["upload_date"],
+            "status": "Processed", # Chunks mil gaye matlab process ho gaya
+            "chunks": doc["chunks_count"]
+        })
+        
+    return formatted_docs
 
 # -------------------------------------------------------------------------------------------------------------------
 # ---------------------------------------------System Settings Endpoints ---------------------------------------------
@@ -798,3 +863,26 @@ async def save_admin_settings(
         raise HTTPException(status_code=500, detail="Failed to save settings.")
 
     return {"message": "Settings updated successfully in MongoDB cluster."}
+
+
+# to show user settings in user profile page
+@router.get("/user/settings", response_model=UserSettingsResponse)
+async def get_user_settings(current_user: dict = Depends(get_current_user)):
+    """
+    User ki profile settings fetch karne ka endpoint
+    """
+    collection = get_users_collection()
+    
+    # DB se user ka fresh data nikalenge (Email/ID ke base par)
+    user_data = await collection.find_one({"email": current_user["email"]})
+    
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Frontend screenshot ke mapping ke hisaab se data return karein
+    return {
+        "name": user_data.get("full_name") or user_data.get("name", "User"),
+        "email": user_data.get("email"),
+        "notifications_enabled": user_data.get("notifications_enabled", True),
+        "version": "1.0.0" # Ye hardcoded ya config se aa sakta hai
+    }
