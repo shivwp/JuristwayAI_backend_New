@@ -9,7 +9,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
-QDRANT_HOST = "localhost" # Ya aapka server IP
+QDRANT_HOST = "127.0.0.1" # Ya aapka server IP
 QDRANT_PORT = 6333
 COLLECTION_NAME = "legal_knowledge"
 
