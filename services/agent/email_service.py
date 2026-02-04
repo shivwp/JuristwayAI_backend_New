@@ -5,12 +5,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 import os
-SMTP_SERVER = os.getenv("SMTP_SERVER")
-SMTP_PORT = int(os.getenv("SMTP_PORT"))
-SMTP_USER = os.getenv("SMTP_USER")
-SENDER_EMAIL = os.getenv("SENDER_EMAIL")
-SMTP_KEY = os.getenv("SMTP_KEY")
-
+# SMTP_SERVER = os.getenv("SMTP_SERVER")
+# SMTP_PORT = int(os.getenv("SMTP_PORT"))
+# SMTP_USER = os.getenv("SMTP_USER")
+# SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+# SMTP_KEY = os.getenv("SMTP_KEY")
+SMTP_SERVER="smtp-relay.brevo.com"
+SMTP_PORT=587
+SENDER_EMAIL="no-reply@juristway.com"
+SMTP_USER="76eb7c001@smtp-brevo.com"
+SMTP_KEY = "xsmtpsib-365259e531a55d01a00c31bef015b56250a88141718e915a48b0985acc9b840e-nwsQ1AFX7CJtVWtH" 
 
 async def send_otp_via_brevo(receiver_email: str) -> bool:
     # 1. Generate 6-digit OTP
