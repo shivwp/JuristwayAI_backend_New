@@ -24,7 +24,7 @@ async def run_reindexing():
     pdf_dir = os.path.join(os.getcwd(), "storage", "pdfs")
     
     if not os.path.exists(pdf_dir):
-        print(f"❌ Folder nahi mila: {pdf_dir}")
+        print(f"❌ Folder not found: {pdf_dir}")
         await close_mongo_connection()
         return
 
@@ -34,11 +34,11 @@ async def run_reindexing():
     files = [f for f in os.listdir(pdf_dir) if f.lower().endswith(".pdf")]
     
     if not files:
-        print("⚠️ Storage folder khali hai. PDFs daal kar dobara chalao.")
+        print("⚠️ Storage folder is empty.")
         await close_mongo_connection()
         return
 
-    print(f"🚀 {len(files)} files mili hain. Processing shuru...")
+    print(f"🚀 {len(files)} got files. processing start ")
 
     for filename in files:
         file_path = os.path.join(pdf_dir, filename)
