@@ -128,24 +128,32 @@ async def forgot_password(payload: ForgotPasswordRequest):
 async def reset_password(payload: ResetPasswordRequest):
     users_coll = get_users_collection()
     user = await users_coll.find_one({"email": payload.email})
+    
+    # 1. User check
     if not user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token or expired token")
+        raise HTTPException(status_code=400, detail="Invalid request or user not found")
 
     token_hash = user.get("password_reset_token_hash")
     expires_at = user.get("password_reset_expires_at")
-    if not token_hash or not expires_at:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token or expired token")
 
+    # 2. Token exist check
+    if not token_hash or not expires_at:
+        raise HTTPException(status_code=400, detail="Reset process not initiated")
+
+    # 3. Timezone consistency (Force UTC)
     now = datetime.now(timezone.utc)
-    if isinstance(expires_at, datetime) and expires_at.tzinfo is None:
+    if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
 
+    # 4. Expiry check
     if now > expires_at:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token or expired token")
+        raise HTTPException(status_code=400, detail="OTP/Token has expired")
 
-    if _hash_reset_token(payload.token) != token_hash:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token or expired token")
+    # 5. Token Hash Match (Ensure payload.token is string)
+    if _hash_reset_token(str(payload.token)) != token_hash:
+        raise HTTPException(status_code=400, detail="Invalid OTP/Token")
 
+    # 6. Password Update
     new_hash = get_password_hash(payload.new_password)
     await users_coll.update_one(
         {"_id": user["_id"]},
@@ -156,7 +164,6 @@ async def reset_password(payload: ResetPasswordRequest):
     )
 
     return {"message": "Password has been reset successfully"}
-
 
 @router.get("/profile")
 async def get_profile(current_user: dict = Depends(get_current_user)):
