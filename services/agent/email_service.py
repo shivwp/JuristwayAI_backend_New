@@ -3,7 +3,6 @@ import aiosmtplib
 from email.message import EmailMessage
 from dotenv import load_dotenv
 
-from api.endpoints.auth import SMTP_KEY
 load_dotenv()
 import os
 SMTP_SERVER = os.getenv("SMTP_SERVER")

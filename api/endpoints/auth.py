@@ -1,6 +1,6 @@
 from email.message import EmailMessage
 import aiosmtplib
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, logger, status
 from fastapi.security import OAuth2PasswordRequestForm
 from core.security import verify_password, create_access_token, get_current_user, get_password_hash
 from core.database import (
@@ -16,6 +16,8 @@ import hashlib
 import secrets
 import os
 from dotenv import load_dotenv
+
+from services.agent.email_service import send_otp_via_brevo
 load_dotenv()
 
 
@@ -97,39 +99,7 @@ def _hash_reset_token(token: str) -> str:
     """
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
-async def send_reset_email(receiver_email: str, otp: str):
-    """Utility function to send email via Brevo"""
-    message = EmailMessage()
-    message["From"] = f"Juristway Support <{SENDER_EMAIL}>"
-    message["To"] = receiver_email
-    message["Subject"] = f"{otp} is your Password Reset Code"
-    
-    html_body = f"""
-    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; max-width: 500px;">
-        <h2 style="color: #1a73e8;">Password Reset Request</h2>
-        <p>Use the following code to reset your password. This code is valid for 30 minutes:</p>
-        <h1 style="background: #f1f3f4; padding: 10px; text-align: center; letter-spacing: 5px; color: #333;">{otp}</h1>
-        <p>If you didn't request this, please ignore this email.</p>
-        <hr>
-        <p style="font-size: 12px; color: #888;">Team Juristway AI</p>
-    </div>
-    """
-    message.add_alternative(html_body, subtype="html")
-    
-    try:
-        await aiosmtplib.send(
-            message,
-            hostname=SMTP_SERVER,
-            port=SMTP_PORT,
-            username=SMTP_USER,
-            password=SMTP_KEY,
-            start_tls=False,
-        )
-        print(f"✅ Password reset email sent to {receiver_email}")
-        return True
-    except Exception as e:
-        print(f"❌ SMTP Error: {str(e)}")
-        return False
+
 
 @router.post("/forgot-password")
 async def forgot_password(payload: ForgotPasswordRequest):
@@ -137,7 +107,6 @@ async def forgot_password(payload: ForgotPasswordRequest):
     user = await users_coll.find_one({"email": payload.email})
 
     if user:
-        # 6 digit ka secure OTP generate karo
         raw_token = str(secrets.randbelow(899999) + 100000) 
         token_hash = _hash_reset_token(raw_token)
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
@@ -147,14 +116,17 @@ async def forgot_password(payload: ForgotPasswordRequest):
             {"$set": {"password_reset_token_hash": token_hash, "password_reset_expires_at": expires_at}},
         )
 
-        # SMTP Call to send email
-        email_sent = await send_reset_email(payload.email, raw_token)
-        if not email_sent:
-            # Optionally log error or handle it
-            print(f"❌ Failed to send password reset email to {payload.email}")
+        # Yahan check karo: Kya aapne 'send_otp_via_brevo' ko hi 'send_reset_email' ka naam diya hai?
+        # Agar function ka naam 'send_otp_via_brevo' hai, toh wahi yahan call karo:
+        email_sent_otp = await send_otp_via_brevo(payload.email) 
+        
+        if not email_sent_otp:
+            # Agar mail fail hui toh hume pata chalna chahiye
+            logger.error(f"❌ Failed to send password reset email to {payload.email}")
+            # Testing ke liye aap return error bhi kar sakte ho
+            # return {"error": "Mail delivery failed"} 
 
     return {"message": "A password reset code has been sent to your email if it exists in our system."}
-
 
 @router.post("/reset-password")
 async def reset_password(payload: ResetPasswordRequest):
