@@ -119,7 +119,7 @@ async def forgot_password(payload: ForgotPasswordRequest):
 
         # Yahan check karo: Kya aapne 'send_otp_via_brevo' ko hi 'send_reset_email' ka naam diya hai?
         # Agar function ka naam 'send_otp_via_brevo' hai, toh wahi yahan call karo:
-        email_sent = await send_otp_via_brevo(payload.email, raw_token)        
+        email_sent = await send_otp_via_brevo(payload.email)        
         if not email_sent:
             print(f"❌ Failed to send password reset email to {payload.email}")
     return {"message": "A password reset code has been sent to your email if it exists in our system."}

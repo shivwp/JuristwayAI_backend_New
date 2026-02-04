@@ -12,7 +12,7 @@ SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SMTP_KEY = os.getenv("SMTP_KEY")
 
 
-async def send_otp_via_brevo(receiver_email: str, raw_token: str) -> str:
+async def send_otp_via_brevo(receiver_email: str) -> bool:
     # 1. Generate 6-digit OTP
     otp = f"{random.randint(100000, 999999)}"
     
