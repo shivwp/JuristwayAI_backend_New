@@ -7,7 +7,7 @@ load_dotenv()
 import os
 SMTP_SERVER = os.getenv("SMTP_SERVER")
 SMTP_PORT = int(os.getenv("SMTP_PORT"))
-SMTP_USER = os.getenv("SMTP_USERNAME")
+SMTP_USER = os.getenv("SMTP_USER")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SMTP_KEY = os.getenv("SMTP_KEY")
 
@@ -41,6 +41,7 @@ async def send_otp_via_brevo(receiver_email: str, raw_token: str) -> str:
             username=SMTP_USER,
             password=SMTP_KEY,
             start_tls=True,
+            use_tls=False
         )
         return otp
     except Exception as e:
