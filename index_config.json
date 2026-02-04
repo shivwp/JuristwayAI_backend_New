@@ -1,7 +1,7 @@
 {
   "name": "vector_index",
   "type": "vectorSearch",
-  "database": "juristway-ai",
+  "database": "juristway",
   "collectionName": "knowledge_base",
   "fields": [
     {
