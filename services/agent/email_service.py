@@ -6,17 +6,19 @@ from dotenv import load_dotenv
 load_dotenv()
 import os
 SMTP_SERVER = os.getenv("SMTP_SERVER")
-SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+SMTP_PORT = int(os.getenv("SMTP_PORT"))
 SMTP_USER = os.getenv("SMTP_USERNAME")
-SMTP_EMAIL = os.getenv("SMTP_EMAIL")  
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SMTP_KEY = os.getenv("SMTP_KEY")
+
+
 async def send_otp_via_brevo(receiver_email: str):
     # 1. Generate 6-digit OTP
     otp = f"{random.randint(100000, 999999)}"
     
     # 2. Setup Email Content
     message = EmailMessage()
-    message["From"] = f"Juristway Support <{SMTP_EMAIL}>" # Verify this email on Brevo
+    message["From"] = f"Juristway Support <{SENDER_EMAIL}>" # Verify this email on Brevo
     message["To"] = receiver_email
     message["Subject"] = f"{otp} is your Juristway Reset Code"
     
