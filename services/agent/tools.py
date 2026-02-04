@@ -17,7 +17,9 @@ COLLECTION_NAME = "legal_knowledge"
 # Gemini Embeddings (Must match PDFManager dimensions: 3072)
 embeddings_model = GoogleGenerativeAIEmbeddings(
     model="models/gemini-embedding-001",
-    google_api_key=settings.GEMINI_API_KEY
+    google_api_key=settings.GEMINI_API_KEY,
+    output_dimensionality=768,
+    task_type="retrieval_query"
 )
 
 # Qdrant Client
