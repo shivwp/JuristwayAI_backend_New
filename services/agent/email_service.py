@@ -1,20 +1,28 @@
+import os
 import random
 import aiosmtplib
+from pathlib import Path
 from email.message import EmailMessage
 from dotenv import load_dotenv
 
-load_dotenv()
-import os
-# SMTP_SERVER = os.getenv("SMTP_SERVER")
-# SMTP_PORT = int(os.getenv("SMTP_PORT"))
-# SMTP_USER = os.getenv("SMTP_USER")
-# SENDER_EMAIL = os.getenv("SENDER_EMAIL")
-# SMTP_KEY = os.getenv("SMTP_KEY")
-SMTP_SERVER="smtp-relay.brevo.com"
-SMTP_PORT=587
-SENDER_EMAIL="no-reply@juristway.com"
-SMTP_USER="76eb7c001@smtp-brevo.com"
-SMTP_KEY = "xsmtpsib-365259e531a55d01a00c31bef015b56250a88141718e915a48b0985acc9b840e-nwsQ1AFX7CJtVWtH" 
+# 1. Locate .env file (Assuming it's in the project root)
+BASE_DIR = Path(__file__).resolve().parent
+while not (BASE_DIR / ".env").exists() and BASE_DIR.parent != BASE_DIR:
+    BASE_DIR = BASE_DIR.parent
+
+env_path = BASE_DIR / ".env"
+
+# 2. Forced load karo
+load_dotenv(dotenv_path=env_path)
+
+# 3. Test karne ke liye ek print lagao (sirf check karne ke liye, baad mein hata dena)
+print(f"--- DEBUG: SMTP_USER is {os.getenv('SMTP_USER')} ---")
+SMTP_SERVER = os.getenv("SMTP_SERVER")
+SMTP_PORT = int(os.getenv("SMTP_PORT"))
+SMTP_USER = os.getenv("SMTP_USER")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+SMTP_KEY = os.getenv("SMTP_KEY")
+
 
 async def send_otp_via_brevo(receiver_email: str) -> bool:
     # 1. Generate 6-digit OTP
