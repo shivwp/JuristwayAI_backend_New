@@ -1,14 +1,23 @@
 import random
 import aiosmtplib
 from email.message import EmailMessage
+from dotenv import load_dotenv
 
+from api.endpoints.auth import SMTP_KEY
+load_dotenv()
+import os
+SMTP_SERVER = os.getenv("SMTP_SERVER")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+SMTP_USER = os.getenv("SMTP_USERNAME")
+SMTP_EMAIL = os.getenv("SMTP_EMAIL")  
+SMTP_KEY = os.getenv("SMTP_KEY")
 async def send_otp_via_brevo(receiver_email: str):
     # 1. Generate 6-digit OTP
     otp = f"{random.randint(100000, 999999)}"
     
     # 2. Setup Email Content
     message = EmailMessage()
-    message["From"] = "Juristway Support <support@juristway.com>" # Verify this email on Brevo
+    message["From"] = f"Juristway Support <{SMTP_EMAIL}>" # Verify this email on Brevo
     message["To"] = receiver_email
     message["Subject"] = f"{otp} is your Juristway Reset Code"
     
@@ -26,10 +35,10 @@ async def send_otp_via_brevo(receiver_email: str):
     try:
         await aiosmtplib.send(
             message,
-            hostname="smtp-relay.brevo.com",
-            port=587,
-            username="76eb7c001@smtp-brevo.com",
-            password="TERI_BREVO_SMTP_KEY", # <--- Apni key yahan daal
+            hostname=SMTP_SERVER,
+            port=SMTP_PORT,
+            username=SMTP_USER,
+            password=SMTP_KEY,
             start_tls=True,
         )
         return otp
