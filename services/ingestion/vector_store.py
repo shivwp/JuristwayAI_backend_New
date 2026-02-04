@@ -43,7 +43,9 @@ class MyCustomVectorStore:
         # 1. Embeddings setup (Gemini)
         self.embeddings = GoogleGenerativeAIEmbeddings(
             model="models/gemini-embedding-001", # Naya model 3072 dims ke liye
-            google_api_key=settings.GEMINI_API_KEY
+            google_api_key=settings.GEMINI_API_KEY,
+            output_dimensionality=768,
+            task_type="retrieval_query"
         )
 
         # 2. Qdrant Client (Docker nahi toh binary se chalao localhost par)
