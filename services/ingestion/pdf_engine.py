@@ -125,6 +125,7 @@
 
 import asyncio
 from datetime import datetime, timezone
+from email.mime import image
 import uuid
 from typing import List, Dict
 from fastapi import logger
@@ -136,17 +137,24 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from core.config import settings
 from core.database import get_knowledge_base_collection # MongoDB metadata ke liye
 import os
+import platform
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from qdrant_client.http import models
 # Qdrant Client Setup (Local ya server IP)
 qdrant_client = QdrantClient(host="127.0.0.1", port=6333, check_compatibility=False) 
 COLLECTION_NAME = "legal_knowledge"
 
+
+# Check if running on Mac (Darwin) or Linux
+IS_MAC = platform.system() == "Darwin"
+TESSERACT_PATH = r"/opt/local/bin/tesseract" if IS_MAC else r"/usr/bin/tesseract"     
+POPPLER_PATH = r"/opt/local/bin" if IS_MAC else r"/usr/bin"
+
 executor = ProcessPoolExecutor(max_workers=4)
 
 def ocr_worker(args):
     page_number, image = args
-    pytesseract.pytesseract.tesseract_cmd = r"/opt/local/bin/tesseract"
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
     text = pytesseract.image_to_string(image, lang="eng", config="--oem 3 --psm 6")
     return {"page": page_number, "text": text.strip()}
 
@@ -163,7 +171,7 @@ class PDFManager:
         )
 
     def process_pdf(self, pdf_path: str) -> List[Dict]:
-        images = convert_from_path(pdf_path, dpi=150, poppler_path="/opt/local/bin")
+        images = convert_from_path(pdf_path, dpi=150, poppler_path=POPPLER_PATH)
         tasks = [(i + 1, img) for i, img in enumerate(images)]
         
         futures = [executor.submit(ocr_worker, t) for t in tasks]
