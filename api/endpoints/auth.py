@@ -1,6 +1,8 @@
 from email.message import EmailMessage
+import shutil
+from typing import Optional
 import aiosmtplib
-from fastapi import APIRouter, Depends, HTTPException, logger, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, logger, status
 from fastapi.security import OAuth2PasswordRequestForm
 from core.security import verify_password, create_access_token, get_current_user, get_password_hash
 from core.database import (
@@ -10,6 +12,9 @@ from core.database import (
     get_subscriptions_collection,
     get_token_usage_collection,
 )
+import phonenumbers
+from phonenumbers import carrier, timezone
+from phonenumbers.phonenumberutil import number_type
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -90,7 +95,7 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
-    token: str # reset otp sent via email
+    token: int # reset otp sent via email
     new_password: str
 
 
@@ -105,7 +110,7 @@ def _hash_reset_token(token: str) -> str:
 @router.post("/forgot-password")
 async def forgot_password(payload: ForgotPasswordRequest):
     users_coll = get_users_collection()
-    user = await users_coll.find_one({"email": payload.email})
+    user = await users_coll.find_one({"email": payload.email.lower()})
 
     if user:
         raw_token = str(secrets.randbelow(899999) + 100000) 
@@ -127,7 +132,7 @@ async def forgot_password(payload: ForgotPasswordRequest):
 @router.post("/reset-password")
 async def reset_password(payload: ResetPasswordRequest):
     users_coll = get_users_collection()
-    user = await users_coll.find_one({"email": payload.email})
+    user = await users_coll.find_one({"email": payload.email.lower()})
     
     # 1. User check
     if not user:
@@ -165,6 +170,8 @@ async def reset_password(payload: ResetPasswordRequest):
 
     return {"message": "Password has been reset successfully"}
 
+
+
 @router.get("/profile")
 async def get_profile(current_user: dict = Depends(get_current_user)):
     """
@@ -180,4 +187,75 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
     if "password_reset_token_hash" in current_user:
         del current_user["password_reset_token_hash"]
 
-    return current_user
+    return current_user 
+
+
+# edit profile endpoint, jisme user apna naam, profile picture, mobile number etc. update kar sakta hai.
+UPLOAD_DIR = "storage/profile_pics"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@router.put("/edit-profile")
+async def edit_profile(
+    full_name: Optional[str] = Form(None),
+    mobile_number: Optional[str] = Form(None),
+    country_code: Optional[str] = Form("IN"), # Default India rakha hai (ISO code: US, IN, GB etc.)
+    profile_pic: Optional[UploadFile] = File(None),
+    current_user: dict = Depends(get_current_user)
+):
+    users_coll = get_users_collection()
+    update_data = {}
+
+    # 1. Full Name update
+    if full_name:
+        update_data["full_name"] = full_name.strip()
+
+    # 2. Global Mobile Validation & Uniqueness Check 🌍
+    if mobile_number:
+        try:
+            # Parse the number (e.g., mobile_number="9876543210", country_code="IN")
+            parsed_number = phonenumbers.parse(mobile_number, country_code)
+            
+            # Check if valid for that country
+            if not phonenumbers.is_valid_number(parsed_number):
+                raise HTTPException(status_code=400, detail=f"Invalid mobile number for country {country_code}")
+            
+            # Standard Format mein convert karo (e.g., +919876543210)
+            formatted_number = phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.E164)
+            
+            # --- Uniqueness Check ---
+            existing_user = await users_coll.find_one({"mobile_number": formatted_number})
+            if existing_user and existing_user["_id"] != current_user["_id"]:
+                raise HTTPException(status_code=400, detail="This mobile number is already linked to another account")
+            
+            update_data["mobile_number"] = formatted_number
+            update_data["country_code"] = country_code # Reference ke liye save kar lo
+
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="Could not validate mobile number")
+
+    # 3. Profile Pic logic 
+    if profile_pic:
+        # ... your image saving logic ...
+       if profile_pic:
+        # File extension check karo (jpg, png etc)
+        file_extension = profile_pic.filename.split(".")[-1]
+        file_name = f"{current_user['_id']}_{int(datetime.now().timestamp())}.{file_extension}"
+        file_path = os.path.join(UPLOAD_DIR, file_name)
+
+        # File ko server par save karo
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(profile_pic.file, buffer)
+        
+        # Database mein image ka URL ya path save karo
+        update_data["profile_pic_url"] = f"/static/profile_pics/{file_name}"
+
+    # 4. Database Update
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No changes provided")
+
+    await users_coll.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": update_data}
+    )
+
+    return {"message": "Profile updated successfully", "mobile": update_data.get("mobile_number")}

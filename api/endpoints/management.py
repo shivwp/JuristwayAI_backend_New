@@ -354,7 +354,7 @@ async def get_user_for_edit(user_id: str, admin: dict = Depends(admin_required))
     return user
 
 # 2. UPDATE User (Edit Save karne par)
-@router.patch("/edit/actions/{user_id}")
+@router.patch("/actions/edit/{user_id}")
 async def update_user_admin(user_id: str, update_data: UserAdminUpdate, admin: dict = Depends(admin_required)):
     collection = get_users_collection()
     
