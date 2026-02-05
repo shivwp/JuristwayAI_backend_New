@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status,  UploadFile, File
 from typing import List, Optional
 
 from fastapi.encoders import jsonable_encoder
+from api.endpoints.library import STORAGE_DIR
 from core.security import get_current_user, get_current_user_email, get_password_hash
 from core.database import get_database, get_embedding_vector, get_plans_collection, get_settings_collection, get_subscriptions_collection, get_token_usage_collection, get_users_collection, get_documents_collection, get_knowledge_base_collection
 from models.domain import ContentLibraryResponse, ContentLibraryStats, DeleteResponse, DocumentOut, DocumentStatus, PlanCreate, PlanResponse, SubscriptionResponse, SubscriptionTier, SystemSettings, UserAdminUpdate, UserBase, UserSettingsResponse, UserStatus
@@ -801,24 +802,40 @@ async def get_content_library(admin: dict = Depends(admin_required)):
 
 
     
-@router.delete("/delete/documents/{pdf_id}", response_model=DeleteResponse)
-async def delete_kb_document(pdf_id: str, current_admin: str = Depends(admin_required)):
+@router.delete("/delete/documents/{pdf_id}")
+async def delete_admin_document(
+    pdf_id: str, 
+    current_admin: str = Depends(admin_required)
+):
+    docs_coll = get_documents_collection()
     kb_coll = get_knowledge_base_collection()
     
-    # Check if exists
-    doc_exists = await kb_coll.find_one({"pdf_id": pdf_id})
-    if not doc_exists:
-        raise HTTPException(status_code=404, detail="Document not found")
+    # 1. Pehle check karo ki document exist karta hai ya nahi
+    doc = await docs_coll.find_one({"pdf_id": pdf_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document record not found in database")
     
-    # Delete all chunks belonging to this pdf_id
-    result = await kb_coll.delete_many({"pdf_id": pdf_id})
-    
-    return DeleteResponse(
-        status="success",
-        message=f"Document {doc_exists['document_name']} deleted.",
-        pdf_id=pdf_id,
-        chunks_deleted=result.deleted_count
-    )
+    try:
+        # 2. Local Storage se file delete karo
+        file_path = os.path.join(STORAGE_DIR, doc["filename"])
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            
+        # 3. Knowledge Base (Chunks) delete karo
+        chunks_result = await kb_coll.delete_many({"pdf_id": pdf_id})
+        
+        # 4. Master Record (Documents collection) delete karo
+        await docs_coll.delete_one({"pdf_id": pdf_id})
+        
+        return {
+            "status": "success",
+            "message": f"Document '{doc.get('title')}' deleted successfully",
+            "pdf_id": pdf_id,
+            "chunks_removed": chunks_result.deleted_count
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
 
 
