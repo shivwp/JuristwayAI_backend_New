@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, Form, UploadFile, File, BackgroundTasks,
 from fastapi.responses import FileResponse
 from typing import List
 from api.endpoints.management import admin_required
-from core.security import get_current_user_email
 from core.database import get_documents_collection, get_knowledge_base_collection
 from models.domain import DocumentOut
 from services.background.processor import process_document_job
@@ -26,7 +25,7 @@ async def upload_admin_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = Form(...),
-    current_admin: dict = Depends(admin_required)
+    current_admin = Depends(admin_required)
 ):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
