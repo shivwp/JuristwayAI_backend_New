@@ -20,6 +20,7 @@ class ChatResponse(BaseModel):
 # --- ENUMS (Ensures consistency between DB and Admin UI) ---
 
 class UserAdminUpdate(BaseModel):
+    id: str = Field(alias="_id")
     full_name: Optional[str] = None
     role: Optional[str] = None # "admin" ya "user"
     is_active: Optional[bool] = None

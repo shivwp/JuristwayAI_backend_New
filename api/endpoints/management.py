@@ -1,3 +1,4 @@
+import os
 from time import timezone
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status,  UploadFile, File, Form
@@ -767,92 +768,84 @@ async def get_library_stats(current_admin: str = Depends(admin_required)):
         "total_chunks": total_chunks
     }
 
-@router.get("/content-library/documents", response_model=List[dict])
-async def list_documents(
-    search: Optional[str] = None,
-    current_admin: str = Depends(admin_required)
-):
-    """Retrieves all documents in the RAG library with search and date sorting."""
-    docs_coll = get_documents_collection()
-    query = {}
-    if search:
-        query["title"] = {"$regex": search, "$options": "i"}
-
-    cursor = docs_coll.find(query).sort("uploaded_at", -1)
+@router.get("/show/documents", response_model=List[ContentLibraryResponse])
+async def get_content_library(admin: dict = Depends(admin_required)):
+    kb_coll = get_knowledge_base_collection()
+    
+    # Hum unique pdf_id par group karenge kyunki ek file ke kayi chunks hote hain
+    pipeline = [
+        {
+            "$group": {
+                "_id": "$pdf_id", 
+                "title": {"$first": "$document_name"},
+                "upload_date": {"$first": "$timestamp"},
+                "chunks_count": {"$sum": 1}
+            }
+        },
+        {"$sort": {"upload_date": -1}}
+    ]
+    
+    cursor = kb_coll.aggregate(pipeline)
     docs = await cursor.to_list(length=100)
-    return [pydantic_dict(doc) for doc in docs]
+    
+    formatted_docs = []
+    for doc in docs:
+        if doc["_id"]:  # Bogus data filter karne ke liye
+            formatted_docs.append({
+                "id": str(doc["_id"]),
+                "title": doc.get("title", "Untitled Document"),
+                "file_name": doc.get("title", "file.pdf"),
+                "file_type": "PDF",
+                "size": "N/A", 
+                "upload_date": doc.get("upload_date") or datetime.now(timezone.utc),
+                "status": "ready", # Knowledge Base mein hai matlab ready hai
+                "chunks": doc.get("chunks_count", 0)
+            })
+    return formatted_docs
 
 
 @router.post("/content-library/upload")
 async def upload_admin_document(
     file: UploadFile = File(...),
     title: str = Form(...),
-    current_admin: str = Depends(admin_required)
+    admin: str = Depends(admin_required)
 ):
-    """Handles PDF, DOCX, TXT uploads, generates embeddings, and saves to Knowledge Base."""
-    allowed_extensions = ["pdf", "docx", "doc", "txt"]
-    file_ext = file.filename.split(".")[-1].lower()
-    
-    if file_ext not in allowed_extensions:
-        raise HTTPException(status_code=400, detail="Unsupported file type.")
-
-    docs_coll = get_documents_collection()
-    kb_coll = get_knowledge_base_collection()
-    
-    # 1. Save Initial Metadata
+    # Temp file save karo processing ke liye
     file_content = await file.read()
-    doc_metadata = {
-        "title": title,
-        "file_name": file.filename,
-        "type": file_ext.upper(),
-        "size": f"{round(len(file_content) / 1024, 2)} KB",
-        "status": DocumentStatus.PROCESSING,
-        "uploaded_at": datetime.now(timezone.utc),
-        "chunk_count": 0
-    }
-    result = await docs_coll.insert_one(doc_metadata)
-    doc_id = str(result.inserted_id)
+    temp_path = f"temp_{int(datetime.now().timestamp())}_{file.filename}"
+    
+    with open(temp_path, "wb") as f:
+        f.write(file_content)
 
     try:
-        # 1. Initialize the manager
         pdf_manager = PDFManager()
-    
-        # 2. Save the uploaded file temporarily so the PDF engine can read it
-        temp_path = f"temp_{file.filename}"
-        with open(temp_path, "wb") as f:
-            f.write(file_content)
+        # save_to_mongo function hi knowledge_base collection mein data daal raha hai
+        # Ensure pdf_manager.save_to_mongo returns the number of chunks
+        chunks_created = await pdf_manager.save_to_mongo_and_qdrant(temp_path, title)
+        
+        os.remove(temp_path) # Cleanup
+        return {"message": "Knowledge Base updated", "chunks": chunks_created}
 
-        # 3. Use the PDFManager to do OCR, Chunking, and Embedding
-        # This replaces the need for 'get_embedding_vector'
-        embedded_chunks = await pdf_manager.save_to_mongo(temp_path, title)
-
-    # 4. Cleanup temp file
-        import os
-        os.remove(temp_path)
-
-        return {"message": "Processing complete", "chunks_created": embedded_chunks}
     except Exception as e:
-        await docs_coll.update_one({"_id": ObjectId(doc_id)}, {"$set": {"status": DocumentStatus.FAILED}})
-        raise HTTPException(status_code=500, detail=str(e))
+        if os.path.exists(temp_path): os.remove(temp_path)
+        raise HTTPException(status_code=500, detail=f"Processing Error: {str(e)}")
     
-@router.delete("/contentlibrary/documents")
-async def delete_all_documents(current_admin: str = Depends(admin_required)):
-    """Permanently removes ALL documents and ALL knowledge base vectors."""
-
-    docs_coll = get_documents_collection()
+@router.delete("/delete/documents/{pdf_id}")
+async def delete_kb_document(pdf_id: str, current_admin: str = Depends(admin_required)):
     kb_coll = get_knowledge_base_collection()
-
-    docs_result = await docs_coll.delete_many({})
-    kb_result = await kb_coll.delete_many({})
+    
+    # Knowledge base se us pdf_id ke saare chunks delete karo
+    result = await kb_coll.delete_many({"pdf_id": pdf_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Document not found in Knowledge Base")
 
     return {
-        "message": "All documents and knowledge base entries deleted successfully.",
-        "documents_deleted": docs_result.deleted_count,
-        "chunks_deleted": kb_result.deleted_count,
+        "message": "Document removed from Knowledge Base",
+        "chunks_deleted": result.deleted_count
     }
 
-
-@router.delete("/contentlibrary/documents/{doc_id}")
+@router.delete("/delete/documents/{doc_id}")
 async def delete_document(doc_id: str, current_admin: str = Depends(admin_required)):
     """Permanently removes document metadata and all associated vector chunks."""
     docs_coll = get_documents_collection()
