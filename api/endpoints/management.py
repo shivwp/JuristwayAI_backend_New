@@ -749,7 +749,7 @@ async def get_top_token_users(
 @router.get("/content-library/stats", response_model=ContentLibraryStats)
 async def get_library_stats(current_admin: str = Depends(admin_required)):
     """Fetches high-level metrics for the Content Library cards."""
-    docs_coll = get_knowledge_base_collection()
+    docs_coll = get_documents_collection()
     
     total = await docs_coll.count_documents({})
     processed = await docs_coll.count_documents({"status": DocumentStatus.PROCESSED})
@@ -800,6 +800,7 @@ async def get_content_library(admin: dict = Depends(admin_required)):
             "chunks": doc["chunks_count"]
         })
     return formatted_docs
+
 
     
 @router.delete("/delete/documents/{pdf_id}", response_model=DeleteResponse)
