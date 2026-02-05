@@ -115,7 +115,8 @@ juristAI/
 ├── services/                     # Business logic services
 │   ├── agent/
 │   │   ├── brain.py              # LangGraph AI agent logic
-│   │   ├── prompts.py            # System and chat prompts
+│   │   ├── prompts.py             # System and chat prompts
+|       |__email_service.py       # for sending otp on email
 │   │   └── tools.py              # AI tool definitions
 │   ├── background/
 │   │   ├── processor.py          # Background job processor
