@@ -12,7 +12,6 @@ from core.database import (
     get_subscriptions_collection,
     get_token_usage_collection,
 )
-from phonenumbers.phonenumberutil import number_type
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta, timezone
 import hashlib
