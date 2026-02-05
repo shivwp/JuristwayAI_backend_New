@@ -94,8 +94,7 @@ async def process_document_job(file_path: str, pdf_id: str, title: str, owner_em
         num_chunks = await pdf_manager.save_to_mongo_and_qdrant(
             pdf_path=file_path,
             document_name=title,
-            user_email=owner_email,
-            pdf_id=pdf_id  # Linker ID
+            user_email=owner_email  # Linker ID
         )
 
         # 3. Update Status: Success (In Documents Collection)
