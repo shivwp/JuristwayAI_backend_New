@@ -26,4 +26,4 @@ hms
 qdrant
 storage/
 __pycache__/
-.env
+.env.env
