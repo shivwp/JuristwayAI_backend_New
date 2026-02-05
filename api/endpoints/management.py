@@ -222,7 +222,7 @@ async def create_new_user_admin(
     plan: str = Form("Free"),         # Default: Free
     account_status: str = Form("Active"),     # Default: Active
     inititial_tokens_amount: int = Form(0),  # Default: 0
-    current_admin: dict = Depends(admin_required)
+    current_admin: str = Depends(admin_required)
 ):
     users_coll = get_users_collection()
 

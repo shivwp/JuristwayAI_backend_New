@@ -24,7 +24,7 @@ async def upload_admin_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = Form(...),
-    current_admin = Depends(admin_required) # Ye ek string (email) hai
+    current_admin:str = Depends(admin_required) # Ye ek string (email) hai
 ):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
