@@ -1,4 +1,3 @@
-from datetime import datetime
 import os
 import shutil
 from datetime import datetime, timezone
@@ -25,7 +24,7 @@ async def upload_admin_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = Form(...),
-    current_admin = Depends(admin_required)
+    current_admin = Depends(admin_required) # Ye ek string (email) hai
 ):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
@@ -36,30 +35,30 @@ async def upload_admin_document(
     temp_path = os.path.join(STORAGE_DIR, temp_filename)
     
     try:
-        # 1. File ko save karo local storage mein
+        # 1. File save
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        # 2. MongoDB 'documents' collection mein entry (Master Record)
+        # 2. Database entry
         docs_coll = get_documents_collection()
         new_doc = {
             "pdf_id": pdf_id,
             "title": title,
             "filename": temp_filename,
-            "status": "processing", # Initial status
-            "owner": current_admin,
+            "status": "processing",
+            "owner": current_admin, # Sahi hai, kyunki ye string hai
             "created_at": datetime.now(timezone.utc),
             "chunk_count": 0
         }
         await docs_coll.insert_one(new_doc)
 
-        # 3. Background task ko trigger karo
+        # 3. Background task (Yahan fix kiya hai)
         background_tasks.add_task(
             process_document_job, 
             temp_path, 
             pdf_id, 
             title, 
-            current_admin["email"]
+            current_admin # ["email"] hata diya kyunki current_admin hi email hai
         )
 
         return {
