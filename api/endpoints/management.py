@@ -803,22 +803,38 @@ async def get_content_library(admin: dict = Depends(admin_required)):
     
 @router.delete("/delete/documents/{pdf_id}", response_model=DeleteResponse)
 async def delete_kb_document(pdf_id: str, current_admin: str = Depends(admin_required)):
-    kb_coll = get_knowledge_base_collection()
-    
+    docs_coll = get_documents_collection()
+    kb_coll = get_knowledge_base_collection()    
     # Check if exists
+    STORAGE_DIR = "storage/pdfs"
     doc_exists = await kb_coll.find_one({"pdf_id": pdf_id})
     if not doc_exists:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=404, detail="Document record not found")
     
-    # Delete all chunks belonging to this pdf_id
-    result = await kb_coll.delete_many({"pdf_id": pdf_id})
-    
-    return DeleteResponse(
-        status="success",
-        message=f"Document {doc_exists['document_name']} deleted.",
-        pdf_id=pdf_id,
-        chunks_deleted=result.deleted_count
-    )
+    try:
+        # 3. File delete logic
+        if "filename" in doc_exists:
+            file_path = os.path.join(STORAGE_DIR, doc_exists["filename"])
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"File {doc_exists['filename']} deleted from storage.")
+
+        # 4. Knowledge base (chunks) saaf karo
+        chunks_del = await kb_coll.delete_many({"pdf_id": pdf_id})
+        
+        # 5. Master record delete karo
+        await docs_coll.delete_one({"pdf_id": pdf_id})
+        
+        return {
+            "status": "success", 
+            "message": "Sab kuch delete ho gaya!",
+            "chunks_removed": chunks_del.deleted_count
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+# Ye Check Karo:
+# File Path: Agar aapka server Linux pe hai aur PDF files kisi aur folder mein ja rahi hain
 
 
 
