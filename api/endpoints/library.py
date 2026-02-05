@@ -47,7 +47,7 @@ async def upload_admin_document(
             "title": title,
             "filename": temp_filename,
             "status": "processing", # Initial status
-            "owner": current_admin["email"],
+            "owner": current_admin,
             "created_at": datetime.now(timezone.utc),
             "chunk_count": 0
         }
