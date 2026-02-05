@@ -748,18 +748,17 @@ async def get_top_token_users(
 
 @router.get("/content-library/stats", response_model=ContentLibraryStats)
 async def get_library_stats(current_admin: str = Depends(admin_required)):
-    """Fetches high-level metrics for the Content Library cards."""
-    docs_coll = get_documents_collection()
+    # Dono collections ko call karein
+    docs_coll = get_documents_collection()        # Register
+    kb_coll = get_knowledge_base_collection()      # Chunks
     
+    # 1. Documents ki counting (Simple & Fast)
     total = await docs_coll.count_documents({})
-    processed = await docs_coll.count_documents({"status": DocumentStatus.PROCESSED})
-    processing = await docs_coll.count_documents({"status": DocumentStatus.PROCESSING})
+    processed = await docs_coll.count_documents({"status": "ready"})
+    processing = await docs_coll.count_documents({"status": "processing"})
     
-    # Aggregation for total chunks across all documents
-    pipeline = [{"$group": {"_id": None, "total_chunks": {"$sum": "$chunk_count"}}}]
-    cursor = docs_coll.aggregate(pipeline)
-    result = await cursor.to_list(1)
-    total_chunks = result[0]["total_chunks"] if result else 0
+    # 2. Chunks ki counting (Knowledge base se)
+    total_chunks = await kb_coll.count_documents({})
 
     return {
         "total_documents": total,
