@@ -217,7 +217,7 @@ class PDFManager:
             logger.error(f"❌ Failed to setup Qdrant collection: {e}")
 
 
-    async def save_to_mongo_and_qdrant(self, pdf_path: str, document_name: str, user_email: str):
+    async def save_to_mongo_and_qdrant(self, pdf_path: str, document_name: str, user_email: str, pdf_id: str = None):
         # 1. OCR (CPU Task)
         loop = asyncio.get_event_loop()
         chunks = await loop.run_in_executor(None, self.process_pdf, pdf_path)
