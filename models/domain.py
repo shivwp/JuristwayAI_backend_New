@@ -123,15 +123,23 @@ class DocumentOut(BaseModel):
         "arbitrary_types_allowed": True,
     }
 
+class DeleteResponse(BaseModel):
+    status: str = "success"
+    message: str
+    pdf_id: str 
+    chunks_deleted: int
+
 class ContentLibraryResponse(BaseModel):
-    id: str = Field(alias="_id")
+    id: str = Field(alias="pdf_id")  # DB ka pdf_id frontend ke liye 'id' ban jayega
     title: str
     file_name: str
-    file_type: str
-    size: str  # e.g., "2.4 MB"
+    file_type: str = "PDF"
+    size: str = "N/A"
     upload_date: datetime
-    status: str  # e.g., "Processed", "Processing", "Failed"
+    status: str = "Processed"
     chunks: int
+
+    model_config = ConfigDict(populate_by_name=True)
 
 class KnowledgeBaseEntry(BaseModel):
     document_id: str = Field(alias="_id")

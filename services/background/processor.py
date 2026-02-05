@@ -2,7 +2,7 @@ import asyncio
 import os
 import logging
 from services.ingestion.pdf_engine import PDFManager
-from core.database import get_documents_collection, connect_to_mongo
+from core.database import connect_to_mongo, get_knowledge_base_collection
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,7 +16,7 @@ async def process_document_job(doc_metadata: dict):
     Purane code ka naya version jo Qdrant use karega aur file delete nahi karega.
     """
     await connect_to_mongo()
-    collection = get_documents_collection()    
+    collection = get_knowledge_base_collection()    
     stored_name = doc_metadata["stored_name"]
     file_path = doc_metadata["file_path"]
     owner_email = doc_metadata["owner"]

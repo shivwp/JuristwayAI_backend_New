@@ -7,7 +7,7 @@ from typing import List, Optional
 from fastapi.encoders import jsonable_encoder
 from core.security import get_current_user, get_current_user_email, get_password_hash
 from core.database import get_database, get_embedding_vector, get_plans_collection, get_settings_collection, get_subscriptions_collection, get_token_usage_collection, get_users_collection, get_documents_collection, get_knowledge_base_collection
-from models.domain import ContentLibraryResponse, ContentLibraryStats, DocumentOut, DocumentStatus, PlanCreate, PlanResponse, SubscriptionResponse, SubscriptionTier, SystemSettings, UserAdminUpdate, UserBase, UserSettingsResponse, UserStatus
+from models.domain import ContentLibraryResponse, ContentLibraryStats, DeleteResponse, DocumentOut, DocumentStatus, PlanCreate, PlanResponse, SubscriptionResponse, SubscriptionTier, SystemSettings, UserAdminUpdate, UserBase, UserSettingsResponse, UserStatus
 from fastapi import UploadFile, File
 from bson import ObjectId
 from datetime import datetime, timedelta, timezone
@@ -749,7 +749,7 @@ async def get_top_token_users(
 @router.get("/content-library/stats", response_model=ContentLibraryStats)
 async def get_library_stats(current_admin: str = Depends(admin_required)):
     """Fetches high-level metrics for the Content Library cards."""
-    docs_coll = get_documents_collection()
+    docs_coll = get_knowledge_base_collection
     
     total = await docs_coll.count_documents({})
     processed = await docs_coll.count_documents({"status": DocumentStatus.PROCESSED})
@@ -772,131 +772,56 @@ async def get_library_stats(current_admin: str = Depends(admin_required)):
 async def get_content_library(admin: dict = Depends(admin_required)):
     kb_coll = get_knowledge_base_collection()
     
-    # Hum unique pdf_id par group karenge kyunki ek file ke kayi chunks hote hain
     pipeline = [
         {
             "$group": {
-                "_id": "$pdf_id", 
-                "title": {"$first": "$document_name"},
-                "upload_date": {"$first": "$timestamp"},
+                "_id": "$pdf_id", # Grouping by your UUID pdf_id
+                "document_name": {"$first": "$document_name"},
+                "timestamp": {"$first": "$timestamp"},
                 "chunks_count": {"$sum": 1}
             }
         },
-        {"$sort": {"upload_date": -1}}
+        {"$sort": {"timestamp": -1}}
     ]
     
     cursor = kb_coll.aggregate(pipeline)
-    docs = await cursor.to_list(length=100)
+    results = await cursor.to_list(length=100)
     
     formatted_docs = []
-    for doc in docs:
-        if doc["_id"]:  # Bogus data filter karne ke liye
-            formatted_docs.append({
-                "id": str(doc["_id"]),
-                "title": doc.get("title", "Untitled Document"),
-                "file_name": doc.get("title", "file.pdf"),
-                "file_type": "PDF",
-                "size": "N/A", 
-                "upload_date": doc.get("upload_date") or datetime.now(timezone.utc),
-                "status": "ready", # Knowledge Base mein hai matlab ready hai
-                "chunks": doc.get("chunks_count", 0)
-            })
+    for doc in results:
+        formatted_docs.append({
+            "pdf_id": doc["_id"],  # Map to model's alias
+            "title": doc["document_name"],
+            "file_name": doc["document_name"],
+            "file_type": "PDF",
+            "size": "N/A",
+            "upload_date": doc["timestamp"],
+            "status": "Processed",
+            "chunks": doc["chunks_count"]
+        })
     return formatted_docs
 
-
-@router.post("/content-library/upload")
-async def upload_admin_document(
-    file: UploadFile = File(...),
-    title: str = Form(...),
-    admin: str = Depends(admin_required)
-):
-    # Temp file save karo processing ke liye
-    file_content = await file.read()
-    temp_path = f"temp_{int(datetime.now().timestamp())}_{file.filename}"
     
-    with open(temp_path, "wb") as f:
-        f.write(file_content)
-
-    try:
-        pdf_manager = PDFManager()
-        # save_to_mongo function hi knowledge_base collection mein data daal raha hai
-        # Ensure pdf_manager.save_to_mongo returns the number of chunks
-        chunks_created = await pdf_manager.save_to_mongo_and_qdrant(temp_path, title)
-        
-        os.remove(temp_path) # Cleanup
-        return {"message": "Knowledge Base updated", "chunks": chunks_created}
-
-    except Exception as e:
-        if os.path.exists(temp_path): os.remove(temp_path)
-        raise HTTPException(status_code=500, detail=f"Processing Error: {str(e)}")
-    
-@router.delete("/delete/documents/{pdf_id}")
+@router.delete("/delete/documents/{pdf_id}", response_model=DeleteResponse)
 async def delete_kb_document(pdf_id: str, current_admin: str = Depends(admin_required)):
     kb_coll = get_knowledge_base_collection()
     
-    # Knowledge base se us pdf_id ke saare chunks delete karo
+    # Check if exists
+    doc_exists = await kb_coll.find_one({"pdf_id": pdf_id})
+    if not doc_exists:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Delete all chunks belonging to this pdf_id
     result = await kb_coll.delete_many({"pdf_id": pdf_id})
     
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Document not found in Knowledge Base")
-
-    return {
-        "message": "Document removed from Knowledge Base",
-        "chunks_deleted": result.deleted_count
-    }
-
-@router.delete("/delete/documents/{doc_id}")
-async def delete_document(doc_id: str, current_admin: str = Depends(admin_required)):
-    """Permanently removes document metadata and all associated vector chunks."""
-    docs_coll = get_documents_collection()
-    kb_coll = get_knowledge_base_collection()
-    
-    # Delete from 'documents'
-    await docs_coll.delete_one({"_id": ObjectId(doc_id)})
-    
-    # Delete all associated chunks from 'knowledge_base'
-    await kb_coll.delete_many({"document_id": doc_id})
-    
-    return {"message": "Document and knowledge base entries deleted successfully."}
+    return DeleteResponse(
+        status="success",
+        message=f"Document {doc_exists['document_name']} deleted.",
+        pdf_id=pdf_id,
+        chunks_deleted=result.deleted_count
+    )
 
 
-# to show uploaded documents in admin content library page
-@router.get("/show/documents", response_model=List[ContentLibraryResponse])
-async def get_content_library(admin: dict = Depends(admin_required)):
-    collection = get_knowledge_base_collection()
-    
-    # Hum saare unique pdf_id ke basis par documents nikalenge
-    # Taki table mein duplicates na aayein (kyunki ek PDF ke many chunks hote hain)
-    pipeline = [
-        {
-            "$group": {
-                "_id": "$pdf_id",
-                "title": {"$first": "$document_name"},
-                "file_name": {"$first": "$document_name"}, # Agar alag field hai toh wo use karein
-                "upload_date": {"$first": "$timestamp"},
-                "chunks_count": {"$sum": 1}
-            }
-        },
-        {"$sort": {"upload_date": -1}} # Naye files upar dikhane ke liye
-    ]
-    
-    cursor = collection.aggregate(pipeline)
-    docs = await cursor.to_list(length=100)
-    
-    formatted_docs = []
-    for doc in docs:
-        formatted_docs.append({
-            "id": str(doc["_id"]),
-            "title": doc["title"],
-            "file_name": doc["file_name"],
-            "file_type": "PDF", # Default PDF kyunki OCR pdf se ho raha hai
-            "size": "N/A", # Agar aapne file size save kiya hai toh wo yahan aayega
-            "upload_date": doc["upload_date"],
-            "status": "Processed", # Chunks mil gaye matlab process ho gaya
-            "chunks": doc["chunks_count"]
-        })
-        
-    return formatted_docs
 
 # -------------------------------------------------------------------------------------------------------------------
 # ---------------------------------------------System Settings Endpoints ---------------------------------------------

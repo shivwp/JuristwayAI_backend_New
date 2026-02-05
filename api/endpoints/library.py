@@ -1,13 +1,16 @@
+from datetime import datetime
 import os
 import shutil
 import uuid
-from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, Form, UploadFile, File, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse
 from typing import List
+from api.endpoints.management import admin_required
 from core.security import get_current_user_email
-from core.database import get_documents_collection
+from core.database import get_knowledge_base_collection
 from models.domain import DocumentOut
 from services.background.processor import process_document_job
+from services.ingestion.pdf_engine import PDFManager
 
 router = APIRouter()
 
@@ -15,38 +18,48 @@ router = APIRouter()
 STORAGE_DIR = "storage/pdfs"
 os.makedirs(STORAGE_DIR, exist_ok=True)
 
-@router.post("/upload", status_code=202)
-async def upload_document(
+
+
+@router.post("/content-library/upload", status_code=202)
+async def upload_admin_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    current_user: str = Depends(get_current_user_email)
+    title: str = Form(...),
+    current_admin: str = Depends(admin_required)
 ):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
 
-    # 1. Unique Filename (isise file serve hogi)
-    # File name se spaces hata do taaki URL mein issue na aaye
-    clean_name = file.filename.replace(" ", "_")
-    unique_filename = f"{uuid.uuid4().hex}_{clean_name}"
-    file_path = os.path.join(STORAGE_DIR, unique_filename)
+    # 1. Unique ID for tracking
+    pdf_id = str(uuid.uuid4())
     
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # 2. Storage Setup
+    clean_name = file.filename.replace(" ", "_")
+    temp_filename = f"{pdf_id}_{clean_name}" # Unique name for storage
+    temp_path = os.path.join(STORAGE_DIR, temp_filename)
+    
+    try:
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # 3. Correct background task call
+        background_tasks.add_task(
+            process_document_job, 
+            temp_path, 
+            pdf_id, 
+            title, 
+            current_admin["email"]
+        )
 
-    # 2. MongoDB Record (Save unique_filename for later)
-    doc_metadata = {
-        "owner": current_user,
-        "filename": file.filename, # Original name for Display
-        "stored_name": unique_filename, # Unique name for File System
-        "status": "processing",
-        "file_path": file_path
-    }
-    await get_documents_collection().insert_one(doc_metadata)
+        return {
+            "message": "Processing started", 
+            "pdf_id": pdf_id, 
+            "status": "processing"
+        }
 
-    # 3. Trigger Ingestion (Qdrant logic starts here)
-    background_tasks.add_task(process_document_job, doc_metadata)
-
-    return {"message": "Processing started", "stored_name": unique_filename}
+    except Exception as e:
+        if os.path.exists(temp_path): os.remove(temp_path)
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @router.get("/view-pdf/{stored_name}")
 async def view_pdf(stored_name: str):
