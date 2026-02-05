@@ -50,14 +50,16 @@ class DocumentStatus(str, Enum):
 # --- USER & AUTH MODELS ---
 
 class UserBase(BaseModel):
-    id: str
+    id: str = Field(alias="_id")
     email: EmailStr
     full_name: Optional[str] = None
     is_admin: bool = False
     status: UserStatus = UserStatus.ACTIVE
     subscription_tier: SubscriptionTier = SubscriptionTier.FREE
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True, # Taki hum 'id' aur '_id' dono use kar sakein
+        from_attributes=True)
 # --- DASHBOARD & OVERVIEW MODELS ---
 
 class AdminOverview(BaseModel):
@@ -106,7 +108,7 @@ class ContentLibraryStats(BaseModel):
     total_chunks: int
 
 class DocumentOut(BaseModel):
-    id: PyObjectId = Field(alias="_id")
+    id: str = Field(alias="_id")
     title: str
     file_name: str
     type: str  # PDF, DOCX, TXT
@@ -121,7 +123,7 @@ class DocumentOut(BaseModel):
     }
 
 class ContentLibraryResponse(BaseModel):
-    id: str
+    id: str = Field(alias="_id")
     title: str
     file_name: str
     file_type: str
@@ -131,7 +133,7 @@ class ContentLibraryResponse(BaseModel):
     chunks: int
 
 class KnowledgeBaseEntry(BaseModel):
-    document_id: str
+    document_id: str = Field(alias="_id")
     text: str
     embedding: List[float] # Specifically for the 768-dim vectors
     metadata: Dict[str, Any]
@@ -140,7 +142,7 @@ class KnowledgeBaseEntry(BaseModel):
 # --- SUBSCRIPTION MODELS ---
 
 class SubscriptionResponse(BaseModel):
-    id: str  # Ensure this is 'id', NOT '_id'
+    id: str = Field(alias="_id") # Ensure this is 'id', NOT '_id'
     user_email: str
     plan_name: str
     price: float

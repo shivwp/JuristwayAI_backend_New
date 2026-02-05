@@ -12,8 +12,6 @@ from core.database import (
     get_subscriptions_collection,
     get_token_usage_collection,
 )
-import phonenumbers
-from phonenumbers import carrier, timezone
 from phonenumbers.phonenumberutil import number_type
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta, timezone
@@ -198,7 +196,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 async def edit_profile(
     full_name: Optional[str] = Form(None),
     mobile_number: Optional[str] = Form(None),
-    country_code: Optional[str] = Form("IN"), # Default India rakha hai (ISO code: US, IN, GB etc.)
+    country_code: Optional[str] = Form("IN"), 
     profile_pic: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user)
 ):
@@ -209,44 +207,28 @@ async def edit_profile(
     if full_name:
         update_data["full_name"] = full_name.strip()
 
-    # 2. Global Mobile Validation & Uniqueness Check 🌍
+    # 2. Simple Mobile Update (No Verification logic)
     if mobile_number:
-        try:
-            # Parse the number (e.g., mobile_number="9876543210", country_code="IN")
-            parsed_number = phonenumbers.parse(mobile_number, country_code)
-            
-            # Check if valid for that country
-            if not phonenumbers.is_valid_number(parsed_number):
-                raise HTTPException(status_code=400, detail=f"Invalid mobile number for country {country_code}")
-            
-            # Standard Format mein convert karo (e.g., +919876543210)
-            formatted_number = phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.E164)
-            
-            # --- Uniqueness Check ---
-            existing_user = await users_coll.find_one({"mobile_number": formatted_number})
-            if existing_user and existing_user["_id"] != current_user["_id"]:
-                raise HTTPException(status_code=400, detail="This mobile number is already linked to another account")
-            
-            update_data["mobile_number"] = formatted_number
-            update_data["country_code"] = country_code # Reference ke liye save kar lo
+        # Bus whitespace saaf kar lo
+        clean_number = mobile_number.strip()
+        
+        # Uniqueness Check (Taki ek number do users ke paas na ho)
+        existing_user = await users_coll.find_one({"mobile_number": clean_number})
+        if existing_user and existing_user["_id"] != current_user["_id"]:
+            raise HTTPException(status_code=400, detail="This mobile number is already linked to another account")
+        
+        update_data["mobile_number"] = clean_number
+        update_data["country_code"] = country_code
 
-        except Exception as e:
-            raise HTTPException(status_code=400, detail="Could not validate mobile number")
-
-    # 3. Profile Pic logic 
+    # 3. Profile Pic logic
     if profile_pic:
-        # ... your image saving logic ...
-       if profile_pic:
-        # File extension check karo (jpg, png etc)
         file_extension = profile_pic.filename.split(".")[-1]
         file_name = f"{current_user['_id']}_{int(datetime.now().timestamp())}.{file_extension}"
         file_path = os.path.join(UPLOAD_DIR, file_name)
 
-        # File ko server par save karo
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(profile_pic.file, buffer)
         
-        # Database mein image ka URL ya path save karo
         update_data["profile_pic_url"] = f"/static/profile_pics/{file_name}"
 
     # 4. Database Update
@@ -258,4 +240,4 @@ async def edit_profile(
         {"$set": update_data}
     )
 
-    return {"message": "Profile updated successfully", "mobile": update_data.get("mobile_number")}
+    return {"message": "Profile updated successfully", "updated_fields": list(update_data.keys())}
