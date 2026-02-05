@@ -1,13 +1,14 @@
 from datetime import datetime
 import os
 import shutil
+from time import timezone
 import uuid
 from fastapi import APIRouter, Depends, Form, UploadFile, File, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse
 from typing import List
 from api.endpoints.management import admin_required
 from core.security import get_current_user_email
-from core.database import get_knowledge_base_collection
+from core.database import get_documents_collection, get_knowledge_base_collection
 from models.domain import DocumentOut
 from services.background.processor import process_document_job
 from services.ingestion.pdf_engine import PDFManager
@@ -25,24 +26,35 @@ async def upload_admin_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = Form(...),
-    current_admin: str = Depends(admin_required)
+    current_admin: dict = Depends(admin_required)
 ):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
 
-    # 1. Unique ID for tracking
     pdf_id = str(uuid.uuid4())
-    
-    # 2. Storage Setup
     clean_name = file.filename.replace(" ", "_")
-    temp_filename = f"{pdf_id}_{clean_name}" # Unique name for storage
+    temp_filename = f"{pdf_id}_{clean_name}"
     temp_path = os.path.join(STORAGE_DIR, temp_filename)
     
     try:
+        # 1. File ko save karo local storage mein
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        # 3. Correct background task call
+        # 2. MongoDB 'documents' collection mein entry (Master Record)
+        docs_coll = get_documents_collection()
+        new_doc = {
+            "pdf_id": pdf_id,
+            "title": title,
+            "filename": temp_filename,
+            "status": "processing", # Initial status
+            "owner": current_admin["email"],
+            "created_at": datetime.now(timezone.utc),
+            "chunk_count": 0
+        }
+        await docs_coll.insert_one(new_doc)
+
+        # 3. Background task ko trigger karo
         background_tasks.add_task(
             process_document_job, 
             temp_path, 
@@ -52,7 +64,7 @@ async def upload_admin_document(
         )
 
         return {
-            "message": "Processing started", 
+            "message": "Upload successful, processing started.", 
             "pdf_id": pdf_id, 
             "status": "processing"
         }
