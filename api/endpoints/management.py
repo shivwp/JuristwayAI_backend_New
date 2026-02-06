@@ -776,37 +776,47 @@ async def get_library_stats(current_admin: str = Depends(admin_required)):
 # table mai sare documents details 
 @router.get("/show/documents", response_model=List[ContentLibraryResponse])
 async def get_content_library(admin: dict = Depends(admin_required)):
-    kb_coll = get_knowledge_base_collection()
+    docs_coll = get_documents_collection()
     
+    # Hum 'documents' collection se shuru karenge aur 'knowledge_base' se chunks count layenge
     pipeline = [
         {
-            "$group": {
-                "_id": "$pdf_id", # Grouping by your UUID pdf_id
-                "document_name": {"$first": "$document_name"},
-                "timestamp": {"$first": "$timestamp"},
-                "chunks_count": {"$sum": 1}
+            "$lookup": {
+                "from": "knowledge_base",       # Chunks wali collection ka naam
+                "localField": "pdf_id",         # Documents ka ID
+                "foreignField": "pdf_id",       # KB mein jo PDF ID hai
+                "as": "chunks_info"
             }
         },
-        {"$sort": {"timestamp": -1}}
+        {
+            "$project": {
+                "pdf_id": 1,
+                "title": 1,
+                "filename": 1,
+                "created_at": 1,
+                "status": 1,
+                "chunks_count": {"$size": "$chunks_info"} # Chunks count calculate karo
+            }
+        },
+        {"$sort": {"created_at": -1}}
     ]
     
-    cursor = kb_coll.aggregate(pipeline)
+    cursor = docs_coll.aggregate(pipeline)
     results = await cursor.to_list(length=100)
     
     formatted_docs = []
     for doc in results:
         formatted_docs.append({
-            "pdf_id": doc["_id"],  # Map to model's alias
-            "title": doc["document_name"],
-            "file_name": doc["document_name"],
+            "pdf_id": doc["pdf_id"],
+            "title": doc.get("title") or doc.get("filename"),
+            "file_name": doc.get("filename"),
             "file_type": "PDF",
-            "size": "N/A",
-            "upload_date": doc["timestamp"],
-            "status": "Processed",
-            "chunks": doc["chunks_count"]
+            "size": "N/A", # Agar file size save karte ho toh wo bhi de sakte ho
+            "upload_date": doc.get("created_at"),
+            "status": doc.get("status", "Processed"),
+            "chunks": doc.get("chunks_count", 0)
         })
     return formatted_docs
-
 
 # actions wale column mai view, download, delete k apis below ---------------------------
 
@@ -844,8 +854,8 @@ async def download_pdf(pdf_id: str, current_admin: str = Depends(admin_required)
     
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-        
-    file_path = os.path.join("storage/pdfs", doc["filename"])
+    STORAGE_DIR = "storage/pdfs"
+    file_path = os.path.join(STORAGE_DIR, doc["filename"])
     
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Physical file not found")
