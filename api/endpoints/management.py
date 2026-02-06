@@ -827,7 +827,7 @@ async def delete_kb_document(pdf_id: str, current_admin: str = Depends(admin_req
         
         return {
             "status": "success", 
-            "message": "Sab kuch delete ho gaya!",
+            "message": "The document is deleted",
             "chunks_removed": chunks_del.deleted_count
         }
 
