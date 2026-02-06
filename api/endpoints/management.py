@@ -847,11 +847,17 @@ async def download_pdf(pdf_id: str, current_admin: str = Depends(admin_required)
         
     file_path = os.path.join("storage/pdfs", doc["filename"])
     
-    # 'filename' parameter dene se download hote waqt asli naam dikhega
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Physical file not found")
+
+    # Content-Disposition: attachment matlab "Zabardasti Download Karo"
+    headers = {"Content-Disposition": f"attachment; filename={doc['filename']}"}
+
     return FileResponse(
         path=file_path, 
-        filename=doc["filename"], 
-        media_type='application/octet-stream'
+        filename=doc["filename"], # Ye browser ke 'Save As' dialog mein naam dikhayega
+        media_type='application/pdf', # PDF hai toh PDF hi likho
+        headers=headers
     )
 
 # delete document k liye
