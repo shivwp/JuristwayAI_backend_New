@@ -807,7 +807,7 @@ async def delete_kb_document(pdf_id: str, current_admin: str = Depends(admin_req
     kb_coll = get_knowledge_base_collection()    
     # Check if exists
     STORAGE_DIR = "storage/pdfs"
-    doc_exists = await kb_coll.find_one({"pdf_id": pdf_id})
+    doc_exists = await docs_coll.find_one({"pdf_id": pdf_id})
     if not doc_exists:
         raise HTTPException(status_code=404, detail="Document record not found")
     
