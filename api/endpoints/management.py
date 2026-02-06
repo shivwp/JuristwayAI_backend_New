@@ -801,13 +801,13 @@ async def get_content_library(admin: dict = Depends(admin_required)):
         {"$sort": {"created_at": -1}}
     ]
     
-    cursor = docs_coll.aggregate(pipeline)
+    cursor = docs_coll.find().sort("created_at", -1)
     results = await cursor.to_list(length=100)
     
     formatted_docs = []
     for doc in results:
         formatted_docs.append({
-            "pdf_id": doc.get("pdf_id"),
+            "pdf_id": doc.get("pdf_id", ""),
             "title": doc.get("title") or doc.get("filename"),
             "file_name": doc.get("filename"),
             "file_type": "PDF",

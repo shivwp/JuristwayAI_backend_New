@@ -139,7 +139,8 @@ class ContentLibraryResponse(BaseModel):
     status: str = "Processed"
     chunks: int
 
-    model_config = ConfigDict(populate_by_name=True)
+    class Config:
+        from_attributes = True
 
 class KnowledgeBaseEntry(BaseModel):
     document_id: str = Field(alias="_id")
