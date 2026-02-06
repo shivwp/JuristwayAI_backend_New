@@ -468,7 +468,7 @@ async def list_subscriptions(
     formatted_subs = []
     for s in subs:
         formatted_subs.append({
-            "id": str(s["_id"]),
+            "_id": str(s["_id"]),
             "user_email": s.get("user_email"),
             "plan_id": str(s.get("plan_id")), # String mein convert karna zaroori hai
             "plan_name": s.get("plan_name"),
