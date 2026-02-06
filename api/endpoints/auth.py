@@ -188,55 +188,87 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
 
 
 # edit profile endpoint, jisme user apna naam, profile picture, mobile number etc. update kar sakta hai.
-UPLOAD_DIR = "storage/profile_pics"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# UPLOAD_DIR = "storage/profile_pics"
+# os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# @router.put("/edit-profile")
+# async def edit_profile(
+#     full_name: Optional[str] = Form(None),
+#     mobile_number: Optional[str] = Form(None),
+#     country_code: Optional[str] = Form("IN"), 
+#     profile_pic: Optional[UploadFile] = File(None),
+#     current_user: dict = Depends(get_current_user)
+# ):
+#     users_coll = get_users_collection()
+#     update_data = {}
+
+#     # 1. Full Name update
+#     if full_name:
+#         update_data["full_name"] = full_name.strip()
+
+#     # 2. Simple Mobile Update (No Verification logic)
+#     if mobile_number:
+#         # Bus whitespace saaf kar lo
+#         clean_number = mobile_number.strip()
+        
+#         # Uniqueness Check (Taki ek number do users ke paas na ho)
+#         existing_user = await users_coll.find_one({"mobile_number": clean_number})
+#         if existing_user and existing_user["_id"] != current_user["_id"]:
+#             raise HTTPException(status_code=400, detail="This mobile number is already linked to another account")
+        
+#         update_data["mobile_number"] = clean_number
+#         update_data["country_code"] = country_code
+
+#     # 3. Profile Pic logic
+#     if profile_pic:
+#         file_extension = profile_pic.filename.split(".")[-1]
+#         file_name = f"{current_user['_id']}_{int(datetime.now().timestamp())}.{file_extension}"
+#         file_path = os.path.join(UPLOAD_DIR, file_name)
+
+#         with open(file_path, "wb") as buffer:
+#             shutil.copyfileobj(profile_pic.file, buffer)
+        
+#         update_data["profile_pic_url"] = f"/static/profile_pics/{file_name}"
+
+#     # 4. Database Update
+#     if not update_data:
+#         raise HTTPException(status_code=400, detail="No changes provided")
+
+#     await users_coll.update_one(
+#         {"_id": current_user["_id"]},
+#         {"$set": update_data}
+#     )
+
+#     return {"message": "Profile updated successfully", "updated_fields": list(update_data.keys())}
+
+
+
 
 @router.put("/edit-profile")
 async def edit_profile(
     full_name: Optional[str] = Form(None),
-    mobile_number: Optional[str] = Form(None),
-    country_code: Optional[str] = Form("IN"), 
-    profile_pic: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user)
 ):
     users_coll = get_users_collection()
-    update_data = {}
+    
+    # current_user database se aa raha hai (get_current_user dependency ke through)
+    user_id = current_user.get("_id")
 
-    # 1. Full Name update
-    if full_name:
-        update_data["full_name"] = full_name.strip()
+    if not full_name or not full_name.strip():
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
 
-    # 2. Simple Mobile Update (No Verification logic)
-    if mobile_number:
-        # Bus whitespace saaf kar lo
-        clean_number = mobile_number.strip()
-        
-        # Uniqueness Check (Taki ek number do users ke paas na ho)
-        existing_user = await users_coll.find_one({"mobile_number": clean_number})
-        if existing_user and existing_user["_id"] != current_user["_id"]:
-            raise HTTPException(status_code=400, detail="This mobile number is already linked to another account")
-        
-        update_data["mobile_number"] = clean_number
-        update_data["country_code"] = country_code
-
-    # 3. Profile Pic logic
-    if profile_pic:
-        file_extension = profile_pic.filename.split(".")[-1]
-        file_name = f"{current_user['_id']}_{int(datetime.now().timestamp())}.{file_extension}"
-        file_path = os.path.join(UPLOAD_DIR, file_name)
-
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(profile_pic.file, buffer)
-        
-        update_data["profile_pic_url"] = f"/static/profile_pics/{file_name}"
-
-    # 4. Database Update
-    if not update_data:
-        raise HTTPException(status_code=400, detail="No changes provided")
-
-    await users_coll.update_one(
-        {"_id": current_user["_id"]},
-        {"$set": update_data}
+    # Database Update
+    result = await users_coll.update_one(
+        {"_id": user_id},
+        {"$set": {"full_name": full_name.strip()}}
     )
 
-    return {"message": "Profile updated successfully", "updated_fields": list(update_data.keys())}
+    # Agar name pehle se wahi hai jo save kar rahe ho, toh modified_count 0 hoga
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "status": "success", 
+        "message": "Profile updated successfully",
+        "updated_name": full_name.strip()
+    }

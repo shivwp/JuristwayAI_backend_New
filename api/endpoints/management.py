@@ -214,6 +214,8 @@ async def get_user_by_id(user_id: str, current_admin: str = Depends(admin_requir
         
     return pydantic_dict(user)
 
+# ADD NEW USER-------------------------
+
 
 @router.post("/add/newuser") # Naya user hai toh POST use karenge
 async def create_new_user_admin(
