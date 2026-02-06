@@ -161,7 +161,10 @@ class SubscriptionResponse(BaseModel):
     start_date: datetime
     end_date: Optional[datetime] = None
     auto_renew: bool = True
-
+    class Config:
+        # Isse FastAPI JSON response mein 'id' bhejega, '_id' nahi
+        populate_by_name = True 
+        from_attributes = True
     
 
 class PlanBase(BaseModel):

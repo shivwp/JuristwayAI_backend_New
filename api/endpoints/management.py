@@ -412,7 +412,7 @@ async def delete_user_admin(user_id: str, admin: dict = Depends(admin_required))
 
 
 # This endpoint powers the four top cards in our UI: Total Subscriptions, Active, Monthly Revenue, and Cancelled.
-
+# box wali
 @router.get("/subscriptions/stats")
 async def get_subscription_stats(current_admin: str = Depends(admin_required)):
     subs_coll = get_subscriptions_collection()
@@ -443,7 +443,7 @@ async def get_subscription_stats(current_admin: str = Depends(admin_required)):
 @router.get("/subscriptions", response_model=List[SubscriptionResponse])
 async def list_subscriptions(
     skip: int = 0,
-    limit: int = 10,
+    limit: int = 50,
     search: Optional[str] = None,
     status: Optional[str] = None,
     current_admin: str = Depends(admin_required)
@@ -458,25 +458,29 @@ async def list_subscriptions(
             {"plan_name": {"$regex": search, "$options": "i"}}
         ]
     
-    # 2. Status Filter (DB mein 'Active'/'Cancelled' capitalized hai, wahi use karein)
+    # 2. Status Filter (Handle "failed" and others)
+    # Agar dropdown se "All Statuses" select hai toh filter mat lagao
     if status and status not in ["All", "All Statuses", ""]:
-        query["status"] = status
+        # Case-insensitive match taaki 'failed' ya 'Failed' dono mil jayein
+        query["status"] = {"$regex": f"^{status}$", "$options": "i"}
 
     cursor = subs_coll.find(query).sort("created_at", -1).skip(skip).limit(limit)
     subs = await cursor.to_list(length=limit)
     
-    # 3. DB Fields Mapping
     formatted_subs = []
     for s in subs:
+        # DB status ko normalize kar rahe hain frontend ki CSS classes ke liye
+        db_status = s.get("status", "active").lower() 
+        
         formatted_subs.append({
-            "_id": str(s["_id"]),
-            "user_email": s.get("user_email"),
-            "plan_id": str(s.get("plan_id")), # String mein convert karna zaroori hai
-            "plan_name": s.get("plan_name"),
+            "subscription_id": str(s["_id"]),
+            "user_email": s.get("user_email", "N/A"),
+            "plan_id": str(s.get("plan_id", "")),
+            "plan_name": s.get("plan_name", "N/A"),
             "price": float(s.get("price", 0.0)),
-            "status": s.get("status", "Active"),
-            "start_date": s.get("created_at"), # Frontend yahan se uthayega
-            "end_date": s.get("end_date"),     # Agar DB mein nahi hai toh None jayega
+            "status": db_status, # 'active', 'cancelled', 'expired', 'failed'
+            "start_date": s.get("created_at"),
+            "end_date": s.get("end_date"),
             "auto_renew": s.get("auto_renew", True)
         })
         
