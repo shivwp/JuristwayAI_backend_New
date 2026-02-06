@@ -2,7 +2,7 @@ import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status,  UploadFile, File, Form
 from typing import List, Optional
-
+import logging
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
 from core.security import get_current_user, get_current_user_email, get_password_hash
@@ -872,34 +872,46 @@ async def download_pdf(pdf_id: str, current_admin: str = Depends(admin_required)
 
 # delete document k liye
 
+
+
+# Logger setup karo taaki console pe dikhe kya ho raha hai
+logger = logging.getLogger(__name__)
+
 @router.delete("/documents/delete/{pdf_id}")
 async def delete_pdf_document(pdf_id: str, current_admin: str = Depends(admin_required)):
     docs_coll = get_documents_collection()
     kb_coll = get_knowledge_base_collection()
     
+    # 1. Sabse pehle 'documents' collection mein check karo
+    # Yahan pdf_id wahi UUID string hai jo Table mein dikh rahi hai
     doc = await docs_coll.find_one({"pdf_id": pdf_id})
+    
     if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
+        # Agar master collection mein hi nahi hai, toh 404 banta hai
+        raise HTTPException(status_code=404, detail="Document not found in Master Records")
 
     try:
-        # 1. Physical file hatao
-        file_path = os.path.join("storage/pdfs", doc["filename"])
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        # 2. Physical file ka rasta 'documents' collection ke data se nikalo
+        filename = doc.get("filename")
+        if filename:
+            file_path = os.path.join("storage", "pdfs", filename)
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
-        # 2. Chunks delete karo (Jo 29 ya 41 dikh rahe hain UI mein)
+        # 3. Knowledge Base (Chunks) ko saaf karo
+        # Kyunki chunks mein bhi pdf_id wahi UUID hoti hai
         kb_delete = await kb_coll.delete_many({"pdf_id": pdf_id})
         
-        # 3. Master record hatao
+        # 4. Aakhir mein 'documents' record ko delete karo
         await docs_coll.delete_one({"pdf_id": pdf_id})
 
         return {
             "status": "success", 
-            "message": f"Deleted {doc['title']}",
-            "chunks_deleted": kb_delete.deleted_count
+            "message": f"Deleted {doc.get('title', 'Document')} and its {kb_delete.deleted_count} chunks",
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+        # Agar kuch phata toh 500 bhejenge
+        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
 # Ye Check Karo:
 # File Path: Agar aapka server Linux pe hai aur PDF files kisi aur folder mein ja rahi hain
 
