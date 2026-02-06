@@ -130,7 +130,7 @@ class DeleteResponse(BaseModel):
     chunks_deleted: int
 
 class ContentLibraryResponse(BaseModel):
-    id: str = Field(alias="pdf_id")  # DB ka pdf_id frontend ke liye 'id' ban jayega
+    pdf_id: str  # DB ka pdf_id frontend ke liye 'id' ban jayega
     title: str
     file_name: str
     file_type: str = "PDF"
