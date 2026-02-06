@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status,  UploadFile, File
 from typing import List, Optional
 
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import FileResponse
 from core.security import get_current_user, get_current_user_email, get_password_hash
 from core.database import get_database, get_embedding_vector, get_plans_collection, get_settings_collection, get_subscriptions_collection, get_token_usage_collection, get_users_collection, get_documents_collection, get_knowledge_base_collection
 from models.domain import ContentLibraryResponse, ContentLibraryStats, DeleteResponse, DocumentOut, DocumentStatus, PlanCreate, PlanResponse, SubscriptionResponse, SubscriptionTier, SystemSettings, UserAdminUpdate, UserBase, UserSettingsResponse, UserStatus
@@ -748,6 +749,8 @@ async def get_top_token_users(
 # Content Library Management Endpoints-----------------------------------------------------------------------
 # ---------------------------------------------------------------------------------------------------------------
 
+
+# dabbe wali details
 @router.get("/content-library/stats", response_model=ContentLibraryStats)
 async def get_library_stats(current_admin: str = Depends(admin_required)):
     # Dono collections ko call karein
@@ -769,6 +772,8 @@ async def get_library_stats(current_admin: str = Depends(admin_required)):
         "total_chunks": total_chunks
     }
 
+
+# table mai sare documents details 
 @router.get("/show/documents", response_model=List[ContentLibraryResponse])
 async def get_content_library(admin: dict = Depends(admin_required)):
     kb_coll = get_knowledge_base_collection()
@@ -803,40 +808,82 @@ async def get_content_library(admin: dict = Depends(admin_required)):
     return formatted_docs
 
 
-    
-@router.delete("/delete/documents/{pdf_id}", response_model=DeleteResponse)
-async def delete_kb_document(pdf_id: str, current_admin: str = Depends(admin_required)):
-    docs_coll = get_documents_collection()
-    kb_coll = get_knowledge_base_collection()    
-    # Check if exists
-    STORAGE_DIR = "storage/pdfs"
-    doc_exists = await docs_coll.find_one({"pdf_id": pdf_id})
-    if not doc_exists:
-        raise HTTPException(status_code=404, detail="Document record not found")
-    
-    try:
-        # 3. File delete logic
-        if "filename" in doc_exists:
-            file_path = os.path.join(STORAGE_DIR, doc_exists["filename"])
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                print(f"File {doc_exists['filename']} deleted from storage.")
+# actions wale column mai view, download, delete k apis below ---------------------------
 
-        # 4. Knowledge base (chunks) saaf karo
-        chunks_del = await kb_coll.delete_many({"pdf_id": pdf_id})
+# view pdf k liye api
+
+@router.get("/documents/view/{pdf_id}")
+async def view_pdf(pdf_id: str, current_admin: str = Depends(admin_required)):
+    docs_coll = get_documents_collection()
+    
+    # 1. DB se file ka naam nikalo
+    doc = await docs_coll.find_one({"pdf_id": pdf_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
         
-        # 5. Master record delete karo
+    # 2. File path check karo
+    file_path = os.path.join("storage/pdfs", doc["filename"])
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found on server")
+
+    # 3. Raw PDF Response bhejo
+    # headers={"Content-Disposition": "inline"} sabse important hai raw view ke liye
+    return FileResponse(
+        path=file_path, 
+        media_type="application/pdf",
+        headers={"Content-Disposition": "inline"} 
+    )
+
+
+# download pdf k liye 
+
+@router.get("/documents/download/{pdf_id}")
+async def download_pdf(pdf_id: str, current_admin: str = Depends(admin_required)):
+    docs_coll = get_documents_collection()
+    doc = await docs_coll.find_one({"pdf_id": pdf_id})
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+        
+    file_path = os.path.join("storage/pdfs", doc["filename"])
+    
+    # 'filename' parameter dene se download hote waqt asli naam dikhega
+    return FileResponse(
+        path=file_path, 
+        filename=doc["filename"], 
+        media_type='application/octet-stream'
+    )
+
+# delete document k liye
+
+@router.delete("/documents/delete/{pdf_id}")
+async def delete_pdf_document(pdf_id: str, current_admin: str = Depends(admin_required)):
+    docs_coll = get_documents_collection()
+    kb_coll = get_knowledge_base_collection()
+    
+    doc = await docs_coll.find_one({"pdf_id": pdf_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    try:
+        # 1. Physical file hatao
+        file_path = os.path.join("storage/pdfs", doc["filename"])
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        # 2. Chunks delete karo (Jo 29 ya 41 dikh rahe hain UI mein)
+        kb_delete = await kb_coll.delete_many({"pdf_id": pdf_id})
+        
+        # 3. Master record hatao
         await docs_coll.delete_one({"pdf_id": pdf_id})
-        
+
         return {
             "status": "success", 
-            "message": f"Document {doc_exists.get('title')} deleted.",
-            "pdf_id": pdf_id,
-            "chunks_deleted": chunks_del.deleted_count
+            "message": f"Deleted {doc['title']}",
+            "chunks_deleted": kb_delete.deleted_count
         }
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
 # Ye Check Karo:
 # File Path: Agar aapka server Linux pe hai aur PDF files kisi aur folder mein ja rahi hain
 

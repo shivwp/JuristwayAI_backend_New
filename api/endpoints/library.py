@@ -71,20 +71,7 @@ async def upload_admin_document(
         if os.path.exists(temp_path): os.remove(temp_path)
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-@router.get("/view-pdf/{stored_name}")
-async def view_pdf(stored_name: str):
-    """Serves the requested PDF file using the unique stored_name."""
-    file_path = os.path.join(STORAGE_DIR, stored_name)
-            
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-            
-    return FileResponse(
-        file_path, 
-        media_type="application/pdf",
-        # inline ka matlab browser mein khulega
-        headers={"Content-Disposition": f"inline; filename={stored_name}"}
-    )
+
 
 # @router.get("/", response_model=List[DocumentOut])
 # async def list_my_documents(current_user: str = Depends(get_current_user_email)):
