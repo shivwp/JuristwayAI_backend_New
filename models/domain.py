@@ -135,7 +135,7 @@ class ContentLibraryResponse(BaseModel):
     file_name: str
     file_type: str = "PDF"
     size: str = "N/A"
-    upload_date: datetime
+    upload_date: Optional[datetime] = None
     status: str = "Processed"
     chunks: int
 

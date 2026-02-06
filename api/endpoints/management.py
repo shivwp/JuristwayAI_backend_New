@@ -812,7 +812,7 @@ async def get_content_library(admin: dict = Depends(admin_required)):
             "file_name": doc.get("filename"),
             "file_type": "PDF",
             "size": "N/A", # Agar file size save karte ho toh wo bhi de sakte ho
-            "upload_date": doc.get("created_at"),
+            "upload_date": doc.get("created_at") or datetime.now(),
             "status": doc.get("status", "Processed"),
             "chunks": doc.get("chunks_count", 0)
         })
