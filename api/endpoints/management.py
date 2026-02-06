@@ -469,22 +469,22 @@ async def list_subscriptions(
     
     formatted_subs = []
     for s in subs:
-        # DB status ko normalize kar rahe hain frontend ki CSS classes ke liye
-        db_status = s.get("status", "active").lower() 
-        
+        # DB status ko model ki umeed ke mutabik format karo
+        # Agar 'active' hai toh 'Active' bana do
+        raw_status = s.get("status", "Active")
+        formatted_status = raw_status.capitalize() 
+
         formatted_subs.append({
-            "subscription_id": str(s["_id"]),
+            "_id": str(s["_id"]),          # Iska naam '_id' hi rakho kyunki model mein alias yahi hai
             "user_email": s.get("user_email", "N/A"),
             "plan_id": str(s.get("plan_id", "")),
             "plan_name": s.get("plan_name", "N/A"),
             "price": float(s.get("price", 0.0)),
-            "status": db_status, # 'active', 'cancelled', 'expired', 'failed'
-            "start_date": s.get("created_at"),
+            "status": formatted_status,    # 'Active', 'Cancelled', etc.
+            "start_date": s.get("created_at") or datetime.now(),
             "end_date": s.get("end_date"),
             "auto_renew": s.get("auto_renew", True)
         })
-        
-    return formatted_subs
 
 # If you want to automate this, you need a "Checkout" or "Assign Plan" endpoint. Here is a simple version for an Admin to manually assign a plan to a user:
 @router.post("/subscriptions/assign")

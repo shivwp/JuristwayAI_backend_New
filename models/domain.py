@@ -157,7 +157,7 @@ class SubscriptionResponse(BaseModel):
     plan_id: str
     plan_name: str
     price: float
-    status: SubscriptionStatus
+    status: str
     start_date: datetime
     end_date: Optional[datetime] = None
     auto_renew: bool = True
