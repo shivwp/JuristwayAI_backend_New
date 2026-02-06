@@ -469,22 +469,25 @@ async def list_subscriptions(
     
     formatted_subs = []
     for s in subs:
-        # DB status ko model ki umeed ke mutabik format karo
-        # Agar 'active' hai toh 'Active' bana do
+        # DB status ko properly capitalize karo taaki Enum pass ho jaye
         raw_status = s.get("status", "Active")
-        formatted_status = raw_status.capitalize() 
+        formatted_status = raw_status.capitalize() if raw_status else "Active"
 
         formatted_subs.append({
-            "_id": str(s["_id"]),          # Iska naam '_id' hi rakho kyunki model mein alias yahi hai
+            "_id": str(s["_id"]),
             "user_email": s.get("user_email", "N/A"),
             "plan_id": str(s.get("plan_id", "")),
             "plan_name": s.get("plan_name", "N/A"),
             "price": float(s.get("price", 0.0)),
-            "status": formatted_status,    # 'Active', 'Cancelled', etc.
+            "status": formatted_status,
             "start_date": s.get("created_at") or datetime.now(),
             "end_date": s.get("end_date"),
             "auto_renew": s.get("auto_renew", True)
         })
+    
+    # DHAYAN SE: Ye return loop (for s in subs) ke BAHAR hona chahiye
+    return formatted_subs
+
 
 # If you want to automate this, you need a "Checkout" or "Assign Plan" endpoint. Here is a simple version for an Admin to manually assign a plan to a user:
 @router.post("/subscriptions/assign")
