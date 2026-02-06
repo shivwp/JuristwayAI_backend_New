@@ -14,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2) Setup SSH
+      # 2) Setup SSH (FAST + SAFE)
       - name: Setup SSH
         run: |
           set -eux
@@ -22,12 +22,17 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.VPS_IP }}" >> ~/.ssh/known_hosts
+
+          echo "⏳ Scanning VPS host key..."
+          ssh-keyscan -T 5 -H "${{ secrets.VPS_IP }}" >> ~/.ssh/known_hosts || true
 
       # 3) Deploy backend to VPS
       - name: Deploy backend to VPS
         run: |
-          ssh -i ~/.ssh/id_ed25519 \
+          ssh \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=10 \
+            -i ~/.ssh/id_ed25519 \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} << 'EOF'
 
             set -euxo pipefail
@@ -36,8 +41,9 @@ jobs:
 
             cd /var/www/juristway/backend
 
-            echo "📥 Force syncing code"
+            echo "📥 Syncing code"
             git fetch origin
+            git checkout main
             git reset --hard origin/main
             git clean -fd
 
@@ -45,18 +51,13 @@ jobs:
             rm -rf hms
             python3 -m venv hms
 
-            if [ ! -f "hms/bin/activate" ]; then
-              echo "❌ hms creation failed"
-              exit 1
-            fi
-
             source hms/bin/activate
 
             echo "📦 Installing Python dependencies"
-            python -m pip install --upgrade pip
-            python -m pip install -r requirements.txt
+            pip install --upgrade pip
+            pip install -r requirements.txt
 
-            echo "♻️ Restarting FastAPI via PM2 on port 6000"
+            echo "♻️ Restarting FastAPI via PM2"
 
             pm2 delete juristway-backend || true
 
