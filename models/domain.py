@@ -51,7 +51,7 @@ class DocumentStatus(str, Enum):
 # --- USER & AUTH MODELS ---
 
 class UserBase(BaseModel):
-    id: str = Field(alias="_id")
+    id: Optional[str]= Field(alias="_id")
     email: EmailStr
     full_name: Optional[str] = None
     is_admin: bool = False

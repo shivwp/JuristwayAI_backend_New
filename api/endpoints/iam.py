@@ -1,9 +1,10 @@
 import logging
+from typing import Optional
 from fastapi import APIRouter, HTTPException, status
 from models.domain import UserBase
 from core.security import get_password_hash
 from core.database import get_users_collection
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from datetime import datetime, timezone
 import os 
 from dotenv import load_dotenv
@@ -15,9 +16,11 @@ router = APIRouter()
 
 ADMIN_REGISTRATION_KEY = os.getenv("SECRET_KEY")
 
-class UserCreate(UserBase):
+class UserCreate(BaseModel):
+    email: EmailStr
+    full_name: str
     password: str
-    admin_secret: str = None
+    admin_secret: Optional[str] = None
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def register_user(user_data: UserCreate):
