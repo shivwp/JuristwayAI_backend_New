@@ -153,6 +153,7 @@ class KnowledgeBaseEntry(BaseModel):
 class SubscriptionResponse(BaseModel):
     id: str = Field(alias="_id") # Ensure this is 'id', NOT '_id'
     user_email: str
+    plan_id: str
     plan_name: str
     price: float
     status: SubscriptionStatus

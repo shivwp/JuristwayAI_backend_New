@@ -414,21 +414,20 @@ async def delete_user_admin(user_id: str, admin: dict = Depends(admin_required))
 
 @router.get("/subscriptions/stats")
 async def get_subscription_stats(current_admin: str = Depends(admin_required)):
-    """Fetch metrics for the Subscription Management header cards."""
-    users_coll = get_users_collection() # Assuming sub info is in user or separate coll
+    subs_coll = get_subscriptions_collection()
     
-    # 1. Counts for the cards
-    total_subs = await users_coll.count_documents({"subscription_plan": {"$ne": "free"}})
-    active_subs = await users_coll.count_documents({"subscription_status": "Active"})
-    cancelled_subs = await users_coll.count_documents({"subscription_status": "Cancelled"})
+    # DB se counts uthao (Case-sensitive match "Active" & "Cancelled")
+    total_subs = await subs_coll.count_documents({})
+    active_subs = await subs_coll.count_documents({"status": "Active"})
+    cancelled_subs = await subs_coll.count_documents({"status": "Cancelled"})
     
-    # 2. Monthly Revenue (Sum of prices of all 'Active' subscriptions)
+    # Revenue: Sirf Active users ka total price sum karo
     pipeline = [
-        {"$match": {"subscription_status": "Active"}},
-        {"$group": {"_id": None, "revenue": {"$sum": "$plan_price"}}}
+        {"$match": {"status": "Active"}},
+        {"$group": {"_id": None, "total": {"$sum": "$price"}}}
     ]
-    revenue_res = await users_coll.aggregate(pipeline).to_list(1)
-    monthly_revenue = revenue_res[0]["revenue"] if revenue_res else 0.0
+    revenue_res = await subs_coll.aggregate(pipeline).to_list(1)
+    monthly_revenue = revenue_res[0]["total"] if revenue_res else 0.0
 
     return {
         "total_subscriptions": total_subs,
@@ -445,38 +444,42 @@ async def list_subscriptions(
     skip: int = 0,
     limit: int = 10,
     search: Optional[str] = None,
+    status: Optional[str] = None,
     current_admin: str = Depends(admin_required)
 ):
-    # 1. Change to the correct collection
-    subs_coll = get_subscriptions_collection() 
-    
+    subs_coll = get_subscriptions_collection()
     query = {}
     
-    # 2. Match the search to your document structure
+    # 1. Search Logic
     if search:
-        # Assuming subscriptions collection has 'user_email' or 'plan_name'
         query["$or"] = [
             {"user_email": {"$regex": search, "$options": "i"}},
             {"plan_name": {"$regex": search, "$options": "i"}}
         ]
+    
+    # 2. Status Filter (DB mein 'Active'/'Cancelled' capitalized hai, wahi use karein)
+    if status and status not in ["All", "All Statuses", ""]:
+        query["status"] = status
 
-    # 3. Use the correct date field from your screenshot: 'created_at'
     cursor = subs_coll.find(query).sort("created_at", -1).skip(skip).limit(limit)
     subs = await cursor.to_list(length=limit)
     
-    return [
-        {
+    # 3. DB Fields Mapping
+    formatted_subs = []
+    for s in subs:
+        formatted_subs.append({
             "id": str(s["_id"]),
             "user_email": s.get("user_email"),
-            "plan_name": s.get("plan_name"), # This matches your 'name' field in plans
-            "price": s.get("price", 0.0),
+            "plan_id": str(s.get("plan_id")), # String mein convert karna zaroori hai
+            "plan_name": s.get("plan_name"),
+            "price": float(s.get("price", 0.0)),
             "status": s.get("status", "Active"),
-            "start_date": s.get("created_at"), # From your screenshot
-            "end_date": s.get("end_date"),
+            "start_date": s.get("created_at"), # Frontend yahan se uthayega
+            "end_date": s.get("end_date"),     # Agar DB mein nahi hai toh None jayega
             "auto_renew": s.get("auto_renew", True)
-        } for s in subs
-    ]
-
+        })
+        
+    return formatted_subs
 
 # If you want to automate this, you need a "Checkout" or "Assign Plan" endpoint. Here is a simple version for an Admin to manually assign a plan to a user:
 @router.post("/subscriptions/assign")
