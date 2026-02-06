@@ -807,7 +807,7 @@ async def get_content_library(admin: dict = Depends(admin_required)):
     formatted_docs = []
     for doc in results:
         formatted_docs.append({
-            "pdf_id": doc.get("pdf_id", ""),
+            "pdf_id": str(doc.get("pdf_id", "")),
             "title": doc.get("title") or doc.get("filename"),
             "file_name": doc.get("filename"),
             "file_type": "PDF",
