@@ -829,7 +829,7 @@ async def delete_kb_document(pdf_id: str, current_admin: str = Depends(admin_req
             "status": "success", 
             "message": f"Document {doc_exists.get('title')} deleted.",
             "pdf_id": pdf_id,
-            "chunks_removed": chunks_del.deleted_count
+            "chunks_deleted": chunks_del.deleted_count
         }
 
     except Exception as e:
