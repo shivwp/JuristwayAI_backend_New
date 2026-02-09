@@ -1,4 +1,5 @@
 from email.message import EmailMessage
+import random
 import shutil
 from typing import Optional
 import aiosmtplib
@@ -104,27 +105,72 @@ def _hash_reset_token(token: str) -> str:
 
 
 
+
+# forgot password
+
 @router.post("/forgot-password")
 async def forgot_password(payload: ForgotPasswordRequest):
     users_coll = get_users_collection()
     user = await users_coll.find_one({"email": payload.email.lower()})
 
     if user:
-        raw_token = str(secrets.randbelow(899999) + 100000) 
+        # 1. Ek hi OTP generate karo
+        raw_token = str(random.randint(100000, 999999)) 
         token_hash = _hash_reset_token(raw_token)
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
 
+        # 2. DB mein wahi hash save karo jo email par ja raha hai
         await users_coll.update_one(
             {"_id": user["_id"]},
-            {"$set": {"password_reset_token_hash": token_hash, "password_reset_expires_at": expires_at}},
+            {"$set": {
+                "password_reset_token_hash": token_hash, 
+                "password_reset_expires_at": expires_at
+            }},
         )
 
-        # Yahan check karo: Kya aapne 'send_otp_via_brevo' ko hi 'send_reset_email' ka naam diya hai?
-        # Agar function ka naam 'send_otp_via_brevo' hai, toh wahi yahan call karo:
-        email_sent = await send_otp_via_brevo(payload.email)        
+        # 3. Wahi raw_token email function ko pass karo
+        email_sent = await send_otp_via_brevo(payload.email, raw_token)
+        
         if not email_sent:
-            print(f"❌ Failed to send password reset email to {payload.email}")
-    return {"message": "A password reset code has been sent to your email if it exists in our system."}
+             print(f"❌ Failed to send email to {payload.email}")
+             # Optional: Yahan exception bhi raise kar sakte ho agar email mandatory hai
+    
+    return {"message": "A password reset code has been sent if the email exists."}
+
+
+class VerifyOTPRequest(BaseModel):
+    email: EmailStr
+    otp: str
+
+
+# verify otp 
+
+
+@router.post("/verify-otp")
+async def verify_otp(payload: VerifyOTPRequest):
+    users_coll = get_users_collection()
+    user = await users_coll.find_one({"email": payload.email.lower()})
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 1. Check if token exists and is not expired
+    expires_at = user.get("password_reset_expires_at")
+    # MongoDB se date aate waqt offset-aware hai ya nahi check karein
+    if not expires_at or expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="OTP has expired")
+
+    # 2. Hash checking (Jo function tune '_hash_reset_token' use kiya tha forgot-password mein)
+    input_hash = _hash_reset_token(payload.otp)
+    stored_hash = user.get("password_reset_token_hash")
+
+    if input_hash != stored_hash:
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
+    return {"message": "OTP verified successfully", "status": "success"}
+
+
+# reset password 
 
 @router.post("/reset-password")
 async def reset_password(payload: ResetPasswordRequest):
@@ -272,3 +318,5 @@ async def edit_profile(
         "message": "Profile updated successfully",
         "updated_name": full_name.strip()
     }
+
+
