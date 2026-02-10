@@ -111,31 +111,40 @@ def _hash_reset_token(token: str) -> str:
 @router.post("/forgot-password")
 async def forgot_password(payload: ForgotPasswordRequest):
     users_coll = get_users_collection()
+    
+    # 1. Database mein email search karo
     user = await users_coll.find_one({"email": payload.email.lower()})
 
-    if user:
-        # 1. Ek hi OTP generate karo
-        raw_token = str(random.randint(100000, 999999)) 
-        token_hash = _hash_reset_token(raw_token)
-        expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
-
-        # 2. DB mein wahi hash save karo jo email par ja raha hai
-        await users_coll.update_one(
-            {"_id": user["_id"]},
-            {"$set": {
-                "password_reset_token_hash": token_hash, 
-                "password_reset_expires_at": expires_at
-            }},
+    # ❌ AGAR USER NAHI MILA: Yahan se error throw karo
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="User not found!"
         )
 
-        # 3. Wahi raw_token email function ko pass karo
-        email_sent = await send_otp_via_brevo(payload.email, raw_token)
-        
-        if not email_sent:
-             print(f"❌ Failed to send email to {payload.email}")
-             # Optional: Yahan exception bhi raise kar sakte ho agar email mandatory hai
+    # ✅ AGAR USER MIL GAYA: Tabhi OTP generate aur send hoga
+    raw_token = str(random.randint(100000, 999999)) 
+    token_hash = _hash_reset_token(raw_token)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+
+    await users_coll.update_one(
+        {"_id": user["_id"]},
+        {"$set": {
+            "password_reset_token_hash": token_hash, 
+            "password_reset_expires_at": expires_at
+        }},
+    )
+
+    email_sent = await send_otp_via_brevo(payload.email, raw_token)
     
-    return {"message": "A password reset code has been sent if the email exists."}
+    if not email_sent:
+         raise HTTPException(
+             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+             detail="Email server is down. Please try after few minutes!"
+         )
+    
+    # Successful case
+    return {"message": "OTP sent successfully", "email": payload.email.lower()}
 
 
 class VerifyOTPRequest(BaseModel):
