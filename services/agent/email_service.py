@@ -4,7 +4,7 @@ import aiosmtplib
 from pathlib import Path
 from email.message import EmailMessage
 from dotenv import load_dotenv
-
+load_dotenv
 # 1. Locate .env file (Assuming it's in the project root)
 BASE_DIR = Path(__file__).resolve().parent
 while not (BASE_DIR / ".env").exists() and BASE_DIR.parent != BASE_DIR:
