@@ -23,7 +23,7 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          echo "⏳ Scanning VPS host key..."
+          echo " Scanning VPS host key..."
           ssh-keyscan -T 5 -H "${{ secrets.VPS_IP }}" >> ~/.ssh/known_hosts || true
 
       # 3) Deploy backend to VPS
@@ -37,27 +37,27 @@ jobs:
 
             set -euxo pipefail
 
-            echo "🚀 Starting Juristway backend deployment..."
+            echo "Starting Juristway backend deployment..."
 
             cd /var/www/juristway/backend
 
-            echo "📥 Syncing code"
+            echo "Syncing code"
             git fetch origin
             git checkout main
             git reset --hard origin/main
             git clean -fd
 
-            echo "🐍 Recreating virtual environment (hms)"
+            echo " Recreating virtual environment (hms)"
             rm -rf hms
             python3 -m venv hms
 
             source hms/bin/activate
 
-            echo "📦 Installing Python dependencies"
+            echo " Installing Python dependencies"
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo "♻️ Restarting FastAPI via PM2"
+            echo " Restarting FastAPI via PM2"
 
             pm2 delete juristway-backend || true
 
