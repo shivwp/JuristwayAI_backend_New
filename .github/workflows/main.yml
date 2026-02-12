@@ -23,7 +23,7 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          echo " Scanning VPS host key..."
+          echo "Scanning VPS host key..."
           ssh-keyscan -T 5 -H "${{ secrets.VPS_IP }}" >> ~/.ssh/known_hosts || true
 
       # 3) Deploy backend to VPS
@@ -41,30 +41,31 @@ jobs:
 
             cd /var/www/juristway/backend
 
-            echo "Syncing code"
+            echo "Syncing latest code..."
             git fetch origin
-            git checkout main
             git reset --hard origin/main
-            git clean -fd
 
-            echo " Recreating virtual environment (hms)"
-            rm -rf hms
-            python3 -m venv hms
+            # Create venv only if not exists
+            if [ ! -d "hms" ]; then
+              echo "Creating virtual environment..."
+              python3 -m venv hms
+            fi
 
             source hms/bin/activate
 
-            echo " Installing Python dependencies"
+            echo "Installing dependencies..."
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo " Restarting FastAPI via PM2"
+            echo "Reloading FastAPI via PM2..."
 
-            pm2 delete juristway-backend || true
-
+            pm2 reload juristway-backend || \
             pm2 start "hms/bin/uvicorn main:app --host 0.0.0.0 --port 6000" \
-              --name juristway-backend
+              --name juristway-backend \
+              --max-memory-restart 300M
 
             pm2 save
 
             echo "✅ Juristway backend deployed successfully!"
+
           EOF
