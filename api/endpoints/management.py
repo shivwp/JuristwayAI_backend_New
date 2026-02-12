@@ -585,6 +585,7 @@ async def update_plan(
     price: Optional[float] = Form(None),
     description: Optional[str] = Form(None),
     is_active: Optional[bool] = Form(None),
+    features: Optional[str] = Form(None),
     admin: dict = Depends(admin_required)
 ):
     collection = get_plans_collection()
@@ -595,7 +596,11 @@ async def update_plan(
     if price is not None: update_data["price"] = price
     if description: update_data["description"] = description
     if is_active is not None: update_data["is_active"] = is_active
-
+    if features:
+        # User textarea mein har line pe ek feature likhega
+        # split("\n") har line ko ek alag element bana dega
+        features_array = [f.strip() for f in features.split("\n") if f.strip()]
+        update_data["features"] = features_array
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided")
 
