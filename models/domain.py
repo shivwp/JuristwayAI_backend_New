@@ -20,12 +20,16 @@ class ChatResponse(BaseModel):
 # --- ENUMS (Ensures consistency between DB and Admin UI) ---
 
 class UserAdminUpdate(BaseModel):
-    id: str = Field(alias="_id")
+    id: Optional[str] = Field(None, alias="_id")
     full_name: Optional[str] = None
     role: Optional[str] = None # "admin" ya "user"
     is_active: Optional[bool] = None
     plan_id: Optional[str] = None # Plan change karne ke liye
+    class Config:
+        # Ye allow karega ki tum 'id' ya '_id' dono me se kuch bhi use kar sako
+        populate_by_name = True
 
+        
 class UserStatus(str, Enum):
     ACTIVE = "Active"
     BANNED = "Banned"
